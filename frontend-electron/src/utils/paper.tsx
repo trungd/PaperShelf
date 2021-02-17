@@ -1,7 +1,6 @@
 import { shell } from 'electron';
 import { store } from './store'
 import { Paper } from '../types'
-import request from 'request';
 import fs from 'fs';
 import yaml from 'js-yaml';
 
@@ -13,8 +12,8 @@ export function getAuthorShort(authorList: string[]) {
   }
 }
 
-export function downloadPaper({ id, url, title }: Paper) {
-  const location = store.get('location') + `/${id}.pdf`
+export function downloadPaper({ id, title }: Paper) {
+  const location = store.get('paperLocation') + `/${id}.pdf`
 
   // TODO: Download paper
   const noti = new Notification(`Downloaded ${title}`, {
@@ -26,7 +25,7 @@ export function downloadPaper({ id, url, title }: Paper) {
 }
 
 export function getPaperLocation({ id }: Paper) {
-  const location = store.get('location') + `/${id}.pdf`;
+  const location = store.get('paperLocation') + `/${id}.pdf`;
   if (fs.existsSync(location)) {
     return location;
   } else {
@@ -34,12 +33,19 @@ export function getPaperLocation({ id }: Paper) {
   }
 }
 
+export function openPdf(paper: Paper) {
+  const loc = getPaperLocation(paper);
+  if (loc) {
+    shell.openPath(loc);
+  }
+}
+
 export function getLocalPapers() {
   try {
     let fileContents = fs.readFileSync(store.get('dataLocation') + '/papers.yml', 'utf8');
     let data = yaml.load(fileContents);
-    return Object.entries(data.papers).map(
-      ([key, paper], i) => ({
+    return Object.entries(data!.papers as Paper[]).map(
+      ([key, paper]) => ({
         ...paper,
         id: key
       })
@@ -51,18 +57,26 @@ export function getLocalPapers() {
 }
 
 export function searchArxiv(searchQuery: string) {
+  const getField = (field: string, e: Element) => e.querySelector(field)?.textContent!;
+  const getPdfUrl = (id: string) => id.replace('abs', 'pdf') + '.pdf';
+
   return fetch(`http://export.arxiv.org/api/query?search_query=${encodeURIComponent(searchQuery)}`)
     .then(response => response.text())
     .then(str => new window.DOMParser().parseFromString(str, "text/xml"))
     .then(data => {
       const entries = data.querySelectorAll("entry")
       return Array.from(entries).map(e => ({
-        arxiv: e.querySelector('id')?.textContent,
-        updated: e.querySelector('updated')?.textContent,
-        published: e.querySelector('published')?.textContent,
-        title: e.querySelector('title')?.textContent,
-        abstract: e.querySelector('summary')?.textContent,
-        authors: Array.from(e.querySelectorAll('author')).map(author => author.querySelector('name')?.textContent)
-      }))
+        id: getField('id', e).split('/').slice(-1)[0],
+        arxiv: {
+          url: getField('id', e),
+          updated: getField('updated', e),
+          published: getField('published', e),
+        },
+        url: getPdfUrl(getField('id', e)),
+        title: getField('title', e),
+        abstract: getField('abstract', e),
+        authors: Array.from(e.querySelectorAll('author')).map(author => author.querySelector('name')?.textContent),
+        tags: []
+      } as Paper))
     })
 }

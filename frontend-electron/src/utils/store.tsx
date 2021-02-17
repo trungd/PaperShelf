@@ -5,6 +5,7 @@ export const store = new Store({
     paperLocation: '/Users/trung/PaperDrive',
     dataLocation: '/Users/trung/PaperDrive/data',
     paperList: {
+      liveSearch: false,
       titleFormat: '{title}',
       descFormat: '{authorShort}, {year}'
     }

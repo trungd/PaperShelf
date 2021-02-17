@@ -1,5 +1,5 @@
 {
-  "name": "PaperDrive",
+  "name": "paper-drive",
   "productName": "PaperDrive",
   "description": "Organize your scientific paper library.",
   "scripts": {
@@ -92,16 +92,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/electron-react-boilerplate/electron-react-boilerplate.git"
+    "url": "git@github.com:trungd/PaperDrive.git"
   },
   "author": {
     "name": "Trung Dang",
     "email": "trungv.dang@outlook.com",
-    "url": ""
+    "url": "https://trungd.github.io"
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/electron-react-boilerplate/electron-react-boilerplate/issues"
+    "url": "https://github.com/trungd/PaperDrive/issues"
   },
   "keywords": [
     "electron",
@@ -109,7 +109,7 @@
     "typescript",
     "ts",
     "sass",
-    "webpack",
+    "webpack"
   ],
   "homepage": "https://github.com/trungd",
   "jest": {
@@ -234,6 +234,9 @@
   },
   "dependencies": {
     "@fluentui/react-northstar": "^0.52.0",
+    "@types/format-unicorn": "^1.1.2",
+    "@types/js-yaml": "^4.0.0",
+    "@types/lodash": "^4.14.168",
     "electron-context-menu": "^2.4.0",
     "electron-debug": "^3.1.0",
     "electron-log": "^4.2.4",
@@ -246,6 +249,7 @@
     "node-fetch": "^2.6.1",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
+    "react-icons": "^4.2.0",
     "react-pdf": "^5.1.0",
     "react-router-dom": "^5.2.0",
     "regenerator-runtime": "^0.13.5",
@@ -256,9 +260,6 @@
     "node": ">=10.x",
     "npm": ">=6.x",
     "yarn": ">=1.21.3"
-  },
-  "collective": {
-    "url": "https://opencollective.com/electron-react-boilerplate-594"
   },
   "browserslist": [],
   "prettier": {

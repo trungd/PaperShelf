@@ -1,148 +1,195 @@
 import React, { useState, useEffect } from 'react';
-import { ButtonGroup, DownloadIcon, Flex, Input, Label, List, ListItemProps, SearchIcon, Text } from '@fluentui/react-northstar';
-import {downloadPaper, getAuthorShort, getLocalPapers, searchArxiv} from '../utils/paper';
-import {Paper} from '../types';
-import {store} from '../utils/store';
-require('format-unicorn')
-import _ from 'lodash';
-import { AiOutlineGlobal } from 'react-icons/ai'
+import {
+  Box,
+  ButtonGroup,
+  DownloadIcon,
+  EditIcon,
+  Flex,
+  Input,
+  List,
+  ListItemProps,
+  SearchIcon,
+  StarIcon,
+  Text,
+} from '@fluentui/react-northstar';
+import { AiOutlineGlobal } from 'react-icons/ai';
+import { ipcRenderer } from 'electron';
+import Paper, { getLocalPapers, getPaper, searchArxiv } from '../utils/paper';
+import { store } from '../utils/store';
+import { openModalEditPaper } from '../utils/broadcast';
+import Collection from '../utils/collection';
 
-;
+require('format-unicorn');
 
 type PaperListProps = {
   width: number;
   onChange: (paper: Paper) => void;
-}
+  collection: Collection;
+};
 
-const Tag = ({ tag }: { tag: string }) => (
-  <Label content={<Text size="small" content={tag.split(':').slice(-1)[0]} />}
-    color="brand" />)
-
-export default ({ width, onChange }: PaperListProps) => {
-  enum ListType { None, Local, HashSearch, Search }
-
+const PaperList = ({ width, onChange, collection }: PaperListProps) => {
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
-  const [selectedList, setSelectedList] = useState<ListType>(ListType.None);
   const [localPapers, setLocalPapers] = useState<Paper[]>([]);
 
-  const [listLocalPapers, setListLocalPapers] = useState<Paper[]>([]);
-  const [listHashSearchPapers, setListHashSearchPapers] = useState<Paper[]>([]);
-  const [listSearchPapers, setListSearchPapers] = useState<Paper[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [papers, setPapers] = useState<Paper[]>([]);
 
-  const allLists = [
-    {
-      list: listLocalPapers,
-      listType: ListType.Local,
-      mapFn: (p: Paper) => ({
-        key: p.id,
-        header: getHeader(p),
-        content: getContent(p),
-        endMedia: getEndMedia(p)
-      } as ListItemProps)
-    },
-    {
-      list: listHashSearchPapers,
-      listType: ListType.HashSearch,
-      mapFn: (p: Paper) => ({
-        key: p.id,
-        header: getHeader(p),
-        content: (<Flex gap="gap.smaller">
-          {p.tags.map((tag) => (<Tag key={tag} tag={tag} />))}
-        </Flex>)
-      } as ListItemProps)
-    },
-    {
-      list: listSearchPapers,
-      listType: ListType.Search,
-      mapFn: (p: Paper) => ({
-        key: p.id,
-        header: getHeader(p),
-        content: getContent(p),
-        contentMedia: <Text content='arvix' color="red" />,
-        headerMedia: <AiOutlineGlobal />,
-        endMedia: getEndMedia(p)
-      } as ListItemProps)
-    }
-  ]
-
-  const [searchQuery, setSearchQuery] = useState<string>('')
-
-  const getHeader = ({ title }: Paper) => (
+  const getHeader = ({ title }: Paper) =>
     (store.get('paperList.titleFormat') as string).formatUnicorn({
-      title: title
-    }));
+      title,
+    });
 
-  const getContent = ({ authors, year }: Paper) => (
+  const getContent = ({ authorShort, year, venue }: Paper) =>
     (store.get('paperList.descFormat') as string).formatUnicorn({
-      authorShort: getAuthorShort(authors),
-      year: year
-    }));
+      authorShort,
+      year,
+      venue,
+    });
 
-  const getEndMedia = (paper: Paper) => (
-    <ButtonGroup buttons={[
-      {
-        icon: <DownloadIcon />,
-        iconOnly: true,
-        text: true,
-        title: "Download",
-        key: "download",
-        onClick: () => downloadPaper(paper)
-      }
-    ]} />);
+  const getEndMedia = (p: Paper) => (
+    <ButtonGroup
+      buttons={[
+        ...(!p.localPath
+          ? [
+              {
+                icon: <DownloadIcon />,
+                iconOnly: true,
+                text: true,
+                title: 'Download',
+                key: 'download',
+                onClick: () => p.download(),
+              },
+            ]
+          : []),
+        ...(!p.inLibrary
+          ? [
+              {
+                icon: <StarIcon />,
+                iconOnly: true,
+                text: true,
+                title: 'Add to Library',
+                key: 'add-to-library',
+                onClick: () => p.addToLibrary(),
+              },
+            ]
+          : [
+              {
+                icon: <EditIcon />,
+                iconOnly: true,
+                text: true,
+                title: 'Edit',
+                key: 'edit',
+                onClick: () => openModalEditPaper(p),
+              },
+            ]),
+      ]}
+    />
+  );
 
-  const loadLocalPapers = () => {
-    setLocalPapers(getLocalPapers());
-  }
+  const mapFn = (p: Paper) =>
+    ({
+      key: p.id,
+      header: getHeader(p),
+      content: getContent(p),
+      endMedia: getEndMedia(p),
+      contentMedia: p.inLibrary ? null : <Text content="arvix" color="red" />,
+      headerMedia: p.inLibrary ? null : <AiOutlineGlobal />,
+      onContextMenu: () => {
+        console.log('renderer-context-menu');
+        ipcRenderer.send('context', { itemType: 'paper', itemId: p.id });
+      },
+    } as ListItemProps);
+
+  /* const mapFn = {
+      content: (<Flex gap="gap.smaller">
+        {p.tags.map((tag) => (
+        <Tag key={tag} tag={tag} />
+        ))}
+      </Flex>),
+    } as ListItemProps),
+  } */
 
   const refreshList = () => {
-    console.log('refreshed')
-    if (searchQuery == '') {
-      setListLocalPapers(localPapers);
-    } else if (searchQuery[0] == '#') {
-      const hashTags = searchQuery.split(' ').map(s => s.length > 0 ? s.substring(1) : '').filter(s => s != '')
-      console.log(hashTags);
-      setListHashSearchPapers(localPapers
-        .filter(it => hashTags.every(tag => it.tags.join(' ').indexOf(tag) >= 0)))
+    if (searchQuery === '') {
+      setPapers(localPapers);
+    } else if (searchQuery[0] === '#') {
+      const hashTags = searchQuery
+        .split(' ')
+        .map((s) => (s.length > 0 ? s.substring(1) : ''))
+        .filter((s) => s !== '');
+      console.log('Hash Tags: ', hashTags);
+      setPapers(
+        localPapers.filter((it) =>
+          hashTags.every((tag) => [...it.tags].join(' ').indexOf(tag) >= 0)
+        )
+      );
     } else {
-      setListSearchPapers([])
-      searchArxiv(searchQuery).then((items) => setListSearchPapers([...items]));
+      setPapers([]);
+      searchArxiv(searchQuery)
+        .then((items) =>
+          items.map((arxivPaper) => new Paper().fromArxivPaper(arxivPaper))
+        )
+        .catch((err) => console.log(err));
     }
-  }
+  };
 
-  useEffect(loadLocalPapers, []);
   useEffect(() => {
+    if (searchQuery === '') {
+      refreshList();
+      return;
+    }
     if (!store.get('paperList.liveSearch')) return;
-    const timer = setTimeout(() => {
-      refreshList()
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [searchQuery])
-  useEffect(refreshList, [localPapers])
+    refreshList();
+    // TODO: debouncing
+    // return () => { clearTimeout(timer); };
+  }, [searchQuery]);
+  useEffect(refreshList, [localPapers]);
+  useEffect(() => {
+    if (collection) {
+      setLocalPapers(collection.papers.map((key) => getPaper(key)!));
+    } else {
+      setLocalPapers(getLocalPapers());
+    }
+  }, [collection]);
 
   return (
     <Flex fill column>
-        <Input fluid
-          icon={<SearchIcon />}
-          value={searchQuery}
-          placeholder="Input paper title or URL..."
-          onChange={(_, props) => setSearchQuery(props!.value)}
-          onKeyUp={(e) => { if (e.key == 'Enter') refreshList() }} />
+      <Input
+        fluid
+        icon={<SearchIcon />}
+        value={searchQuery}
+        placeholder="Input paper title or URL..."
+        onChange={(_, props) => setSearchQuery(props!.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') refreshList();
+        }}
+        clearable
+      />
 
-      <div style={{ overflow: 'auto', height: 'calc(100vh - 120px)', width: width }}>
-        { allLists.map(({ list, listType, mapFn }) => (
-          list.length > 0 && <List selectable defaultSelectedIndex={-1}
-            items={list.map(mapFn)}
-            selectedIndex={selectedList == listType ? selectedIndex : -1}
-              onSelectedIndexChange={(_, newProps) => {
-                setSelectedIndex(newProps!.selectedIndex!);
-                setSelectedList(listType);
-                onChange(list[newProps!.selectedIndex!]);
-                console.log(list[newProps!.selectedIndex!]) }
-              }
-              truncateHeader={true}
-          />
-        )) }
-      </div>
+      <Box
+        styles={{
+          overflow: 'auto',
+          width: `${width}px`,
+          position: 'relative',
+          height: `calc(100% - 32px)`,
+        }}
+      >
+        <List
+          selectable
+          truncateHeader
+          truncateContent
+          defaultSelectedIndex={-1}
+          items={papers.map(mapFn)}
+          selectedIndex={selectedIndex}
+          onSelectedIndexChange={(_, newProps) => {
+            setSelectedIndex(newProps!.selectedIndex!);
+            onChange(papers[newProps!.selectedIndex!]);
+            console.log('Selected: ', papers[newProps!.selectedIndex!]);
+          }}
+        />
+      </Box>
     </Flex>
   );
-}
+};
+
+export default PaperList;

@@ -1,103 +1,139 @@
-import React, { Component } from 'react';
+import React, { useEffect, useState } from 'react';
 import { HashRouter as Router, Switch, Route } from 'react-router-dom';
+import { Flex, Toolbar, AddIcon, Menu, Box } from '@fluentui/react-northstar';
+import { GiBookshelf } from 'react-icons/gi';
+import { AiFillFolderAdd, AiFillTag } from 'react-icons/ai';
 import PdfViewer from './components/PdfViewer';
 import PaperList from './components/PaperList';
-import { Flex, Box, Toolbar, AddIcon } from '@fluentui/react-northstar'
-import {
-  DownloadIcon, OpenOutsideIcon
-} from '@fluentui/react-icons-northstar'
 import './App.global.css';
-import _ from 'lodash';
-import throttle from "lodash/throttle";
-import { downloadPaper, openPdf } from './utils/paper'
 
 import AddPaper from './views/addPaper';
-import { Paper } from './types';
+import Paper from './utils/paper';
+import { store } from './utils/store';
+import Collection, { getCollections } from './utils/collection';
 
-type MainProps = {}
-type MainState = {
-  pdfWidth: number;
-  treeWidth: number;
-  selectedPaper?: Paper;
-}
+const Main = () => {
+  const [sideBarWidth, setSideBarWidth] = useState<number>(300);
+  const [showSideBar, setShowSideBar] = useState<boolean>(true);
+  const [pdfWidth, setPdfWidth] = useState<number>(0);
+  const [height, setHeight] = useState<number>(0);
+  const [selectedPaper, setSelectedPaper] = useState<Paper>();
+  const [collection, setCollection] = useState<Collection>();
+  const [allCollections, setAllCollections] = useState<Collection[]>([]);
 
-class Main extends Component<MainProps, MainState> {
-  constructor(props: MainProps) {
-    super(props)
+  const [addTab, setAddTab] = useState<boolean>(false);
 
-    this.state = {
-      treeWidth: 300,
-      pdfWidth: 0,
-      selectedPaper: undefined
-    }
-  }
+  const setSize = () => {
+    setHeight(window.innerHeight - 32);
+    setPdfWidth(window.innerWidth - sideBarWidth);
+  };
 
-  componentDidMount() {
-    this.setSize();
-    window.addEventListener("resize", throttle(this.setSize, 500))
-  }
+  useEffect(() => {
+    setAllCollections(getCollections());
 
-  componentWillUnmount () {
-    window.removeEventListener("resize", throttle(this.setSize, 500))
-  }
+    setSize();
+    window.addEventListener('resize', _.throttle(setSize, 500));
 
-  setSize = () => {
-    this.setState({ pdfWidth: window.innerWidth - this.state.treeWidth });
-  }
-
-  render = () => {
-    const { selectedPaper } = this.state;
-
-    return (
-      <Flex column styles={{height: '100vh'}}>
-        <Toolbar
-          aria-label="Default"
-          items={[
-            {
-              icon: <AddIcon />,
-              iconOnly: true,
-              text: true,
-              title: "New",
-              key: "new",
-            },
-            {
-              key: 'divider-1',
-              kind: 'divider',
-            },
-            {
-              icon: <DownloadIcon />,
-              iconOnly: true,
-              text: true,
-              title: "Download",
-              tooltip: "Download",
-              key: "download",
-              disabled: selectedPaper == undefined,
-              onClick: () => downloadPaper(selectedPaper!)
-            },
-            {
-              icon: (<OpenOutsideIcon {...{ outline: true }} />),
-              key: 'open',
-              title: 'Open',
-              disabled: selectedPaper == undefined,
-              onClick: () => openPdf(selectedPaper!),
-            },
-          ]}
-        />
-        <Flex.Item grow>
-          <Flex>
-            <Flex column>
-              <PaperList
-                width={this.state.treeWidth}
-                onChange={(paper) => this.setState({ selectedPaper: paper })}
-              />
-            </Flex>
-            <PdfViewer paper={selectedPaper} width={this.state.pdfWidth} />
-          </Flex>
-        </Flex.Item>
-        <div>Footer</div>
-      </Flex>
+    setShowSideBar(store.get('view.showSideBar'));
+    setSideBarWidth(
+      store.get('view.showSideBar') ? store.get('view.sideBarWidth') : 0
     );
-  }
+
+    return () => {
+      window.removeEventListener('resize', _.throttle(setSize, 500));
+    };
+  }, []);
+
+  const onSetCollection = (c: Collection) => {
+    setCollection(c);
+  };
+
+  // store.onDidChange('view', ({ showSideBar, sideBarWidth }) => {
+  //   console.log('Settings changed', showSideBar, sideBarWidth);
+  //   setShowSideBar(showSideBar);
+  //   setSideBarWidth(showSideBar ? sideBarWidth : 0);
+  // });
+
+  return (
+    <Flex column styles={{ height: '100vh', width: '100vw' }}>
+      <Toolbar
+        aria-label="Default"
+        items={[
+          {
+            key: 'collection',
+            kind: 'custom',
+            content: (
+              <Menu
+                underlined
+                primary
+                items={[
+                  {
+                    key: 'all',
+                    icon: <GiBookshelf />,
+                    content: 'All',
+                    active: !collection,
+                    onClick: () => setCollection(undefined),
+                  },
+                  ...allCollections!.map((c) => ({
+                    key: c.key,
+                    content: c.name,
+                    active: collection?.key === c.key,
+                    onClick: () => onSetCollection(c),
+                  })),
+                ]}
+              />
+            ),
+          },
+          {
+            icon: (
+              <AddIcon
+                {...{
+                  outline: true,
+                }}
+              />
+            ),
+            key: 'add-tab',
+            active: addTab,
+            menu: [
+              {
+                key: 'new-collection',
+                content: 'New Collection',
+                icon: <AiFillFolderAdd />,
+              },
+              {
+                key: 'open-tag',
+                content: 'Open Tag',
+                icon: <AiFillTag />,
+              },
+            ],
+            menuOpen: addTab,
+            onMenuOpenChange: (_, { menuOpen }) => setAddTab(menuOpen),
+          },
+        ]}
+      />
+      <Flex.Item grow>
+        <Flex>
+          {showSideBar && (
+            <Box style={{ width: `${sideBarWidth}px`, height: `${height}px` }}>
+              <PaperList
+                collection={collection}
+                width={sideBarWidth}
+                onChange={(paper) => setSelectedPaper(paper)}
+              />
+            </Box>
+          )}
+          <Box
+            style={{
+              width: `calc(100vw - ${sideBarWidth}px`,
+              height: `${height}px`,
+            }}
+          >
+            <PdfViewer paper={selectedPaper} width={pdfWidth} />
+          </Box>
+        </Flex>
+      </Flex.Item>
+    </Flex>
+  );
 };
 
 export default function App() {

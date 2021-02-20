@@ -1,82 +1,287 @@
-import { shell } from 'electron';
-import { store } from './store'
-import { Paper } from '../types'
+import { shell, ipcRenderer } from 'electron';
 import fs from 'fs';
-import yaml from 'js-yaml';
+import { pick } from 'lodash';
+import { store, dataStore } from './store';
 
-export function getAuthorShort(authorList: string[]) {
-  if (authorList.length > 2) {
-    return authorList[0].split(' ').slice(-1).pop() + ' et al.'
-  } else {
-    return authorList.join(', ')
+type ArxivPaper = {
+  id: string;
+  title: string;
+  url: string;
+  pdfUrl: string;
+  updated: Date;
+  published: Date;
+  abstract: string;
+  authors: string[];
+  categories: string[];
+};
+
+class Paper {
+  id?: string;
+
+  title?: string;
+
+  pdfUrl?: string;
+
+  localPath?: string;
+
+  inLibrary = false;
+
+  arxiv?: {
+    url: string;
+    updated: string;
+    published: string;
+  };
+
+  abstract?: string;
+
+  authors: string[] = [];
+
+  keywords?: string[];
+
+  tags: string[] = [];
+
+  zoomPercentage = 100;
+
+  // Populated fields
+  year?: string;
+
+  venue?: string;
+
+  authorShort?: string;
+
+  constructor(p: Record<string, unknown> | null = null) {
+    if (p) {
+      Object.assign(this, p);
+      this.refresh();
+    }
   }
-}
 
-export function downloadPaper({ id, title }: Paper) {
-  const location = store.get('paperLocation') + `/${id}.pdf`
+  serialize() {
+    this.refresh();
+    if (!this.id) {
+      this.id =
+        (this.authors.length > 0
+          ? this.authors[0].split(' ').slice(-1)[0]
+          : '') +
+        this.year +
+        this.title!.split(' ').slice(-1)[0];
+    }
 
-  // TODO: Download paper
-  const noti = new Notification(`Downloaded ${title}`, {
-    body: `File saved to ${location}`
-  })
-  noti.onclick = () => {
-    shell.showItemInFolder(location)
+    dataStore.set(
+      `papers.${this.id}`,
+      pick(this, [
+        'id',
+        'title',
+        'pdfUrl',
+        'localPath',
+        'inLibrary',
+        'abstract',
+        'authors',
+        'tags',
+        'arxiv',
+        'zoomPercentage',
+      ])
+    );
+    this.refresh();
   }
-}
 
-export function getPaperLocation({ id }: Paper) {
-  const location = store.get('paperLocation') + `/${id}.pdf`;
-  if (fs.existsSync(location)) {
-    return location;
-  } else {
+  refresh() {
+    const getField = (field: string) => {
+      const tags = this.getTagsByType(field);
+      return tags ? tags[0] : undefined;
+    };
+    this.year = getField('year');
+    this.venue = getField('venue');
+
+    // Populate authorShort
+    if (this.authors.length > 2) {
+      this.authorShort = `${this.authors[0].split(' ').slice(-1).pop()} et al.`;
+    } else {
+      this.authorShort = this.authors.join(', ');
+    }
+  }
+
+  static delete(id: string) {
+    dataStore.delete(`papers.${id}`);
+  }
+
+  fromArxivPaper(arxivPaper: ArxivPaper) {
+    this.pdfUrl = this.pdfUrl || arxivPaper.pdfUrl;
+    this.title = this.title || arxivPaper.title;
+    this.abstract = this.abstract || arxivPaper.abstract;
+    if (this.authors.length === 0) this.authors = arxivPaper.authors;
+    this.appendTags([
+      ...arxivPaper.categories,
+      ...(arxivPaper.updated
+        ? [`year:${arxivPaper.updated.getFullYear()}`]
+        : []),
+    ]);
+    return this;
+  }
+
+  appendTags(tags: string[]) {
+    this.tags = [...new Set([...this.tags, ...tags])];
+  }
+
+  getTagsByType(tagType: string) {
+    const tags = this.tags.filter(
+      (t) => /^[a-z0-9]+:[a-z0-9-]+$/.test(t) && t.split(':')[0] === tagType
+    );
+    if (tags.length === 0) return null;
+    return tags.map((t) => t.split(':').slice(-1)[0]);
+  }
+
+  download() {
+    const location = `${store.get('paperLocation')}/${this.id}.pdf`;
+
+    ipcRenderer.send('download', {
+      url: this.pdfUrl,
+      directory: store.get('paperLocation'),
+      filename: `${this.id}.pdf`,
+    });
+
+    this.localPath = location;
+    this.serialize();
+
+    // const noti = new Notification(`Downloaded "${title}"`, {
+    //  body: `File saved to "${location}"`,
+    // });
+    // noti.onclick = () => {
+    //  shell.showItemInFolder(location);
+    // };
+  }
+
+  addToLibrary() {
+    this.inLibrary = true;
+    if (store.get('autoDownload')) this.download();
+    this.serialize();
+  }
+
+  getLocalPath() {
+    if (!this.localPath) return null;
+    if (fs.existsSync(this.localPath)) {
+      return this.localPath;
+    }
+    this.localPath = undefined;
+    this.serialize();
+
     return null;
   }
-}
 
-export function openPdf(paper: Paper) {
-  const loc = getPaperLocation(paper);
-  if (loc) {
-    shell.openPath(loc);
+  openPdf() {
+    const loc = this.getLocalPath();
+    if (loc) {
+      shell.openPath(loc);
+    }
   }
 }
 
 export function getLocalPapers() {
-  try {
-    let fileContents = fs.readFileSync(store.get('dataLocation') + '/papers.yml', 'utf8');
-    let data = yaml.load(fileContents);
-    return Object.entries(data!.papers as Paper[]).map(
-      ([key, paper]) => ({
+  const papers: Record<string, unknown>[] | null = dataStore.get('papers');
+  if (!papers) return [];
+  return Object.entries(papers).map(
+    ([key, paper]) =>
+      new Paper({
         ...paper,
-        id: key
+        id: key,
+        inLibrary: true,
       })
-    )
+  );
+
+  /*
+  try {
+    const fileContents = fs.readFileSync(
+      `${store.get('dataLocation')}/papers.yml`,
+      'utf8'
+    );
+    const data = yaml.load(fileContents);
+    return Object.entries(data!.papers as Paper[]).map(([key, paper]) => ({
+      ...paper,
+      id: key,
+    }));
   } catch (e) {
     console.log(e);
-    return []
+    return [];
   }
+  */
 }
 
-export function searchArxiv(searchQuery: string) {
-  const getField = (field: string, e: Element) => e.querySelector(field)?.textContent!;
-  const getPdfUrl = (id: string) => id.replace('abs', 'pdf') + '.pdf';
-
-  return fetch(`http://export.arxiv.org/api/query?search_query=${encodeURIComponent(searchQuery)}`)
-    .then(response => response.text())
-    .then(str => new window.DOMParser().parseFromString(str, "text/xml"))
-    .then(data => {
-      const entries = data.querySelectorAll("entry")
-      return Array.from(entries).map(e => ({
-        id: getField('id', e).split('/').slice(-1)[0],
-        arxiv: {
-          url: getField('id', e),
-          updated: getField('updated', e),
-          published: getField('published', e),
-        },
-        url: getPdfUrl(getField('id', e)),
-        title: getField('title', e),
-        abstract: getField('abstract', e),
-        authors: Array.from(e.querySelectorAll('author')).map(author => author.querySelector('name')?.textContent),
-        tags: []
-      } as Paper))
-    })
+export function comparePaperTitle(t1: string, t2: string) {
+  const normalize = (t: string) => t.toLowerCase().replace(/\W/g, '');
+  return normalize(t1) === normalize(t2);
 }
+
+export function getAllTags() {
+  // TODO: cache/store tag list if slow
+  const papers = getLocalPapers();
+  return [
+    ...new Set(papers.map((p) => p.tags).flat(1)),
+    ...store.get('defaultTags'),
+  ];
+}
+
+export function getAllAuthors() {
+  // TODO: cache/store tag list if slow
+  const papers = getLocalPapers();
+  return [...new Set(papers.map((p) => p.authors).flat(1))];
+}
+
+export function getPaper(id: string) {
+  const obj = dataStore.get(`papers.${id}`);
+  return obj ? new Paper(obj) : null;
+}
+
+export function searchArxiv(searchQuery: string, start = 0, maxResults = 10) {
+  const getField = (field: string, e: Element) => {
+    const el = e.querySelector(field);
+    return el ? el!.textContent! : null;
+  };
+  const getPdfUrl = (id: string) => `${id.replace('abs', 'pdf')}.pdf`;
+
+  return fetch(
+    `http://export.arxiv.org/api/query?${new URLSearchParams({
+      search_query: searchQuery,
+      start,
+      max_results: maxResults,
+    }).toString()}`
+  )
+    .then((response) => response.text())
+    .then((str) => new window.DOMParser().parseFromString(str, 'text/xml'))
+    .then((data) => {
+      const entries = data.querySelectorAll('entry');
+      return Array.from(entries).map(
+        (e) =>
+          ({
+            id: getField('id', e)!.split('/').slice(-1)[0].replace('.', '-'),
+            pdfUrl: getPdfUrl(getField('id', e)!),
+            title: getField('title', e),
+            abstract: getField('summary', e),
+            updated: new Date(getField('updated', e)!),
+            published: new Date(getField('published', e)!),
+            authors: Array.from(e.querySelectorAll('author')).map(
+              (author) => author.querySelector('name')?.textContent
+            ),
+            categories: Array.from(
+              e.querySelectorAll('category')
+            ).map((category) => category.getAttribute('term')),
+          } as ArxivPaper)
+      );
+    });
+}
+
+export async function fetchPaper(p: Paper) {
+  const res = await searchArxiv(p.title!, 0, 1);
+
+  if (res.length === 1) {
+    const arxivPaper = res[0];
+    console.log(arxivPaper);
+    if (comparePaperTitle(p.title!, arxivPaper.title)) {
+      p.fromArxivPaper(arxivPaper);
+    }
+    console.log(p);
+  }
+
+  return p;
+}
+
+export default Paper;

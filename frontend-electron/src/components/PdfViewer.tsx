@@ -1,5 +1,4 @@
 import React, { ElementRef, useEffect, useRef, useState } from 'react';
-import ReactDOM from 'react-dom';
 
 import { Document, Page, pdfjs } from 'react-pdf';
 import {
@@ -9,7 +8,6 @@ import {
   Flex,
   InfoIcon,
   Loader,
-  MenuItemProps,
   OpenOutsideIcon,
   ShareGenericIcon,
   Toolbar,
@@ -32,19 +30,19 @@ function PdfViewer({ width, paper }: PdfViewerProps) {
   const padLeft = 8;
   const padRight = 0;
   const [toolBarItems, setToolBarItems] = useState<string[]>([]);
-  const [menuOpenBookmark, setMenuOpenBookmark] = useState<boolean>(false);
+  const [menuOpenBookmark, setMenuOpenBookmark] = useState<boolean>();
 
   const [numPages, setNumPages] = useState(0);
-  const [, setCurrentPage] = useState(-1);
+  const [, setCurrentPage] = useState<string>();
   const [zoomPercentage, setZoomPercentage] = useState<number>(100);
 
   const [viewWidth, setViewWidth] = useState(0);
   const [pageWidth, setPageWidth] = useState<number>();
-  const [pageHeight, setPageHeight] = useState<number>();
+  const [pageHeight, setPageHeight] = useState<string>();
   const [pageMarginLeft, setPageMarginLeft] = useState<number>(0);
 
   const container = useRef(null);
-  const pageRef: Record<number, ElementRef<'div'> | undefined> = {};
+  const pageRef: Record<number, ElementRef<'div'> | null> = {};
 
   const zoom = (p: number) => {
     setZoomPercentage(p);
@@ -55,24 +53,24 @@ function PdfViewer({ width, paper }: PdfViewerProps) {
     paper.serialize();
   };
 
-  const onDocumentLoadSuccess = ({ numPages: num }) => {
+  const onDocumentLoadSuccess = ({ numPages: num }: { numPages: number }) => {
     setNumPages(num);
-    zoom(paper!.zoomPercentage);
+    zoom(paper?.zoomPercentage || 1);
   };
 
-  const onItemClick = ({ pageNumber }) => {
+  const onItemClick = ({ pageNumber }: { pageNumber: string }) => {
     setCurrentPage(pageNumber);
   };
 
   const onRenderSuccess = (i: number) => {
-    zoom(paper!.zoomPercentage);
-    const pageDom = pageRef[i]!.querySelector(
+    if (!paper) return;
+    zoom(paper?.zoomPercentage);
+    const pageDom = pageRef[i]?.querySelector(
       'div.react-pdf__Page__textContent'
-    )!;
+    ) as HTMLElement;
 
-    setPageHeight(pageDom.style.height);
-    return;
-
+    setPageHeight(pageDom?.style.height);
+    /*
     const text = Array.prototype.slice
       // eslint-disable-next-line react/no-find-dom-node
       .call(ReactDOM.findDOMNode(pageDom)?.childNodes)
@@ -82,21 +80,18 @@ function PdfViewer({ width, paper }: PdfViewerProps) {
         top: n.style.top,
         left: n.style.left,
       }));
-    console.log(text);
-    // setPageWidth(pageRef[i].current.width);
-    // setPageHeight(pageRef[i].current.height);
+     */
   };
 
   useEffect(() => {
     setToolBarItems(store.get('toolBar.items'));
-    console.log(toolBarItems);
   }, []);
 
   useEffect(() => {
     if (!paper) return;
     setPageWidth(((viewWidth - padLeft - padRight) * zoomPercentage) / 100);
-    setPageMarginLeft((1 - paper!.zoomPercentage / 100) / 2);
-  }, [paper, zoomPercentage]);
+    setPageMarginLeft((1 - paper?.zoomPercentage / 100) / 2);
+  }, [paper, zoomPercentage, viewWidth]);
 
   useEffect(() => {
     setViewWidth(width - 16);
@@ -139,7 +134,7 @@ function PdfViewer({ width, paper }: PdfViewerProps) {
       key: 'download',
       title: 'Download',
       disabled: !paper,
-      onClick: () => paper!.download(),
+      onClick: () => paper?.download(),
     },
     info: {
       icon: (
@@ -161,15 +156,12 @@ function PdfViewer({ width, paper }: PdfViewerProps) {
       key: 'collection',
       icon: <BookmarkIcon />,
       title: 'Add to Collection',
-      menu: getCollections().map(
-        (c) =>
-          ({
-            key: c.key,
-            content: c.name,
-          } as MenuItemProps[])
-      ),
+      menu: getCollections().map((c) => ({
+        key: c.key,
+        content: c.name,
+      })),
       menuOpen: menuOpenBookmark,
-      onMenuOpenChange: (_, props) => setMenuOpenBookmark(props!.menuOpen),
+      onMenuOpenChange: (_, p) => setMenuOpenBookmark(p?.menuOpen),
     } as ToolbarItemProps,
   } as Record<string, ToolbarItemProps>;
 
@@ -193,7 +185,7 @@ function PdfViewer({ width, paper }: PdfViewerProps) {
       >
         {paper && (
           <Document
-            file={paper.getLocalPath() || paper!.pdfUrl}
+            file={paper.getLocalPath() || paper?.pdfUrl}
             onLoadSuccess={onDocumentLoadSuccess}
             onItemClick={onItemClick}
             noData={<></>}

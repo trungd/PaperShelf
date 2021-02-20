@@ -6,6 +6,7 @@ import {
   MenuItemConstructorOptions,
 } from 'electron';
 import { dataStore, store } from './utils/store';
+import { openModalEditPaper } from './utils/broadcast';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
   selector?: string;
@@ -105,7 +106,7 @@ export default class MenuBuilder {
           label: 'Add Paper',
           accelerator: 'Command+N',
           selector: 'new:',
-          click: () => openAddPaperModal(this.mainWindow),
+          click: () => openModalEditPaper(),
         },
       ],
     };

@@ -59,12 +59,14 @@ class Paper {
   serialize() {
     this.refresh();
     if (!this.id) {
-      this.id =
-        (this.authors.length > 0
-          ? this.authors[0].split(' ').slice(-1)[0]
-          : '') +
-        this.year +
-        this.title!.split(' ').slice(-1)[0];
+      if (this.authors.length > 0 && this.year && this.title) {
+        this.id =
+          this.authors[0].split(' ').slice(-1)[0] +
+          this.year +
+          this.title.split(' ').slice(-1)[0];
+      } else {
+        this.id = Math.random().toString(36).slice(2);
+      }
     }
 
     dataStore.set(
@@ -101,7 +103,7 @@ class Paper {
     }
   }
 
-  static delete(id: string) {
+  static delete(id?: string) {
     dataStore.delete(`papers.${id}`);
   }
 
@@ -232,17 +234,17 @@ export function getPaper(id: string) {
 }
 
 export function searchArxiv(searchQuery: string, start = 0, maxResults = 10) {
-  const getField = (field: string, e: Element) => {
+  const getField = (field: string, e: Element, defaultValue = '') => {
     const el = e.querySelector(field);
-    return el ? el!.textContent! : null;
+    return el?.textContent || defaultValue;
   };
   const getPdfUrl = (id: string) => `${id.replace('abs', 'pdf')}.pdf`;
 
   return fetch(
     `http://export.arxiv.org/api/query?${new URLSearchParams({
       search_query: searchQuery,
-      start,
-      max_results: maxResults,
+      start: start.toString(),
+      max_results: maxResults.toString(),
     }).toString()}`
   )
     .then((response) => response.text())
@@ -252,12 +254,12 @@ export function searchArxiv(searchQuery: string, start = 0, maxResults = 10) {
       return Array.from(entries).map(
         (e) =>
           ({
-            id: getField('id', e)!.split('/').slice(-1)[0].replace('.', '-'),
-            pdfUrl: getPdfUrl(getField('id', e)!),
+            id: getField('id', e).split('/').slice(-1)[0],
+            pdfUrl: getPdfUrl(getField('id', e)),
             title: getField('title', e),
             abstract: getField('summary', e),
-            updated: new Date(getField('updated', e)!),
-            published: new Date(getField('published', e)!),
+            updated: new Date(getField('updated', e)),
+            published: new Date(getField('published', e)),
             authors: Array.from(e.querySelectorAll('author')).map(
               (author) => author.querySelector('name')?.textContent
             ),
@@ -270,17 +272,16 @@ export function searchArxiv(searchQuery: string, start = 0, maxResults = 10) {
 }
 
 export async function fetchPaper(p: Paper) {
-  const res = await searchArxiv(p.title!, 0, 1);
+  if (p.title) {
+    const res = await searchArxiv(p.title, 0, 1);
 
-  if (res.length === 1) {
-    const arxivPaper = res[0];
-    console.log(arxivPaper);
-    if (comparePaperTitle(p.title!, arxivPaper.title)) {
-      p.fromArxivPaper(arxivPaper);
+    if (res.length === 1) {
+      const arxivPaper = res[0];
+      if (comparePaperTitle(p.title, arxivPaper.title)) {
+        p.fromArxivPaper(arxivPaper);
+      }
     }
-    console.log(p);
   }
-
   return p;
 }
 

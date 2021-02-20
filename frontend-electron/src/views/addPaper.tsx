@@ -20,7 +20,7 @@ import Paper, {
 
 export default function AddPaper() {
   const query = new URLSearchParams(useLocation().search);
-  const id = query.get('id')!;
+  const id = query.get('id');
   const [title, setTitle] = useState<string>();
   const [url, setUrl] = useState<string>();
   const [tags, setTags] = useState<string[]>([]);
@@ -38,7 +38,7 @@ export default function AddPaper() {
   };
 
   const save = () => {
-    const p = getPaper(id)!;
+    const p = id ? getPaper(id) : new Paper();
     p.title = title;
     p.pdfUrl = url;
     p.tags = tags;
@@ -58,18 +58,22 @@ export default function AddPaper() {
       })
     )
       .then((p) => setPaper(p))
-      .catch((err) => console.log(err));
+      .catch(() => {});
   };
 
   const remove = () => {
-    Paper.delete(id);
-    close();
+    if (id != null) {
+      Paper.delete(id);
+      close();
+    }
   };
 
   useEffect(() => {
-    const paper = getPaper(id);
-    if (paper) setPaper(paper);
-  }, []);
+    if (id != null) {
+      const paper = getPaper(id);
+      if (paper) setPaper(paper);
+    }
+  }, [id]);
 
   return (
     <Flex fill column padding="padding.medium" styles={{ height: '100vh' }}>
@@ -81,7 +85,7 @@ export default function AddPaper() {
             style={{ fontSize: 20 }}
             value={title}
             showSuccessIndicator={false}
-            onChange={(_, props) => setTitle(props!.value)}
+            onChange={(_, p) => setTitle(p?.value)}
             message={
               <Flex fill vAlign="end">
                 <Button
@@ -108,7 +112,7 @@ export default function AddPaper() {
             label="URL"
             fluid
             value={url}
-            onChange={(_, props) => setUrl(props!.value)}
+            onChange={(_, p) => setUrl(p?.value)}
           />
           <FormField
             label="Tags"

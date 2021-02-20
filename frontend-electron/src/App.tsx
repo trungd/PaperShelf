@@ -1,3 +1,4 @@
+import { throttle } from 'lodash';
 import React, { useEffect, useState } from 'react';
 import { HashRouter as Router, Switch, Route } from 'react-router-dom';
 import { Flex, Toolbar, AddIcon, Menu, Box } from '@fluentui/react-northstar';
@@ -21,18 +22,18 @@ const Main = () => {
   const [collection, setCollection] = useState<Collection>();
   const [allCollections, setAllCollections] = useState<Collection[]>([]);
 
-  const [addTab, setAddTab] = useState<boolean>(false);
-
-  const setSize = () => {
-    setHeight(window.innerHeight - 32);
-    setPdfWidth(window.innerWidth - sideBarWidth);
-  };
+  const [addTab, setAddTab] = useState<boolean>();
 
   useEffect(() => {
+    const setSize = () => {
+      setHeight(window.innerHeight - 32);
+      setPdfWidth(window.innerWidth - sideBarWidth);
+    };
+
     setAllCollections(getCollections());
 
     setSize();
-    window.addEventListener('resize', _.throttle(setSize, 500));
+    window.addEventListener('resize', throttle(setSize, 500));
 
     setShowSideBar(store.get('view.showSideBar'));
     setSideBarWidth(
@@ -40,9 +41,9 @@ const Main = () => {
     );
 
     return () => {
-      window.removeEventListener('resize', _.throttle(setSize, 500));
+      window.removeEventListener('resize', throttle(setSize, 500));
     };
-  }, []);
+  }, [sideBarWidth]);
 
   const onSetCollection = (c: Collection) => {
     setCollection(c);
@@ -74,7 +75,7 @@ const Main = () => {
                     active: !collection,
                     onClick: () => setCollection(undefined),
                   },
-                  ...allCollections!.map((c) => ({
+                  ...allCollections.map((c) => ({
                     key: c.key,
                     content: c.name,
                     active: collection?.key === c.key,
@@ -107,7 +108,7 @@ const Main = () => {
               },
             ],
             menuOpen: addTab,
-            onMenuOpenChange: (_, { menuOpen }) => setAddTab(menuOpen),
+            onMenuOpenChange: (_, p) => setAddTab(p?.menuOpen),
           },
         ]}
       />

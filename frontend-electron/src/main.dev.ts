@@ -135,7 +135,7 @@ app.on('window-all-closed', () => {
 app
   .whenReady()
   .then(createWindow)
-  .then(() => initContextMenu(mainWindow!))
+  .then(() => initContextMenu(mainWindow))
   .catch(console.log);
 
 ipcMain.on('modal-edit-paper', (_, p?: Paper) => {
@@ -148,7 +148,7 @@ ipcMain.on('modal-edit-paper', (_, p?: Paper) => {
     minimizable: false,
     fullscreenable: false,
     skipTaskbar: true,
-    parent: mainWindow!,
+    parent: mainWindow || undefined,
     modal: false,
     frame: true,
     webPreferences: {
@@ -158,14 +158,14 @@ ipcMain.on('modal-edit-paper', (_, p?: Paper) => {
     show: false,
   });
 
-  win.loadURL(`file://${__dirname}/index.html#/addPaper?id=${p.id}`);
+  win.loadURL(`file://${__dirname}/index.html#/addPaper?id=${p?.id || ''}`);
   win.once('ready-to-show', () => {
     win.show();
   });
 });
 
 ipcMain.on('download', (_, { url, directory, filename }) => {
-  download(mainWindow!, url, {
+  download(mainWindow, url, {
     filename,
     directory,
     showBadge: false,
@@ -180,5 +180,4 @@ app.on('activate', () => {
 
 ipcMain.on('context', (_, { itemType, itemId }) => {
   console.log('main-context-menu', itemType, itemId);
-  global.contextMenu.itemType = itemType;
 });

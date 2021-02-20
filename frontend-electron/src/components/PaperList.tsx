@@ -24,11 +24,16 @@ require('format-unicorn');
 type PaperListProps = {
   width: number;
   onChange: (paper: Paper) => void;
-  collection: Collection;
+  // eslint-disable-next-line react/require-default-props
+  collection?: Collection;
 };
 
-const PaperList = ({ width, onChange, collection }: PaperListProps) => {
-  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+const PaperList = ({
+  width,
+  onChange,
+  collection = undefined,
+}: PaperListProps) => {
+  const [selectedIndex, setSelectedIndex] = useState<number>();
   const [localPapers, setLocalPapers] = useState<Paper[]>([]);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -95,7 +100,6 @@ const PaperList = ({ width, onChange, collection }: PaperListProps) => {
       contentMedia: p.inLibrary ? null : <Text content="arvix" color="red" />,
       headerMedia: p.inLibrary ? null : <AiOutlineGlobal />,
       onContextMenu: () => {
-        console.log('renderer-context-menu');
         ipcRenderer.send('context', { itemType: 'paper', itemId: p.id });
       },
     } as ListItemProps);
@@ -117,7 +121,6 @@ const PaperList = ({ width, onChange, collection }: PaperListProps) => {
         .split(' ')
         .map((s) => (s.length > 0 ? s.substring(1) : ''))
         .filter((s) => s !== '');
-      console.log('Hash Tags: ', hashTags);
       setPapers(
         localPapers.filter((it) =>
           hashTags.every((tag) => [...it.tags].join(' ').indexOf(tag) >= 0)
@@ -129,7 +132,7 @@ const PaperList = ({ width, onChange, collection }: PaperListProps) => {
         .then((items) =>
           items.map((arxivPaper) => new Paper().fromArxivPaper(arxivPaper))
         )
-        .catch((err) => console.log(err));
+        .catch(() => {});
     }
   };
 
@@ -142,7 +145,7 @@ const PaperList = ({ width, onChange, collection }: PaperListProps) => {
     refreshList();
     // TODO: debouncing
     // return () => { clearTimeout(timer); };
-  }, [searchQuery]);
+  }, [searchQuery, refreshList]);
   useEffect(refreshList, [localPapers]);
   useEffect(() => {
     if (collection) {
@@ -181,10 +184,9 @@ const PaperList = ({ width, onChange, collection }: PaperListProps) => {
           defaultSelectedIndex={-1}
           items={papers.map(mapFn)}
           selectedIndex={selectedIndex}
-          onSelectedIndexChange={(_, newProps) => {
-            setSelectedIndex(newProps!.selectedIndex!);
-            onChange(papers[newProps!.selectedIndex!]);
-            console.log('Selected: ', papers[newProps!.selectedIndex!]);
+          onSelectedIndexChange={(_, p) => {
+            setSelectedIndex(p?.selectedIndex);
+            if (p?.selectedIndex) onChange(papers[p?.selectedIndex]);
           }}
         />
       </Box>

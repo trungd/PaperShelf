@@ -1,20 +1,16 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, MenuItemConstructorOptions } from 'electron';
 import contextMenu from 'electron-context-menu';
 
-export default (window: BrowserWindow) => {
-  global.contextMenu = {
-    itemType: null,
-  };
-
+export default (window?: BrowserWindow) => {
   return contextMenu({
     window,
-    prepend: (defaultActions, params, browserWindow) => [
-      {
-        label: 'Remove from Library',
-        role: 'removeFromLibrary',
-        visible: global.contextMenu.itemType === 'paper',
-        click: () => {},
-      },
-    ],
+    prepend: () =>
+      [
+        {
+          label: 'Remove from Library',
+          // visible: global.contextMenu.itemType === 'paper',
+          click: () => {},
+        },
+      ] as MenuItemConstructorOptions[],
   });
 };

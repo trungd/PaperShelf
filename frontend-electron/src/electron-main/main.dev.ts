@@ -6,7 +6,7 @@
  * through IPC.
  *
  * When running `yarn build` or `yarn build-main`, this file is compiled to
- * `./src/main.prod.js` using webpack. This gives us some performance wins.
+ * `./src/electron-main/main.prod.js` using webpack. This gives us some performance wins.
  */
 import 'core-js/stable';
 import 'regenerator-runtime/runtime';
@@ -18,7 +18,7 @@ import Store from 'electron-store';
 import electronDl, { download } from 'electron-dl';
 import MenuBuilder from './menu';
 import initContextMenu from './contextMenu';
-import Paper from './utils/paper';
+import Paper from '../utils/paper';
 
 electronDl();
 Store.initRenderer();
@@ -86,7 +86,7 @@ const createWindow = async () => {
     },
   });
 
-  mainWindow.loadURL(`file://${__dirname}/index.html`);
+  mainWindow.loadURL(`file://${__dirname}/../index.html`);
 
   // @TODO: Use 'ready-to-show' event
   //        https://github.com/electron/electron/blob/master/docs/api/browser-window.md#using-ready-to-show-event
@@ -158,7 +158,7 @@ ipcMain.on('modal-edit-paper', (_, p?: Paper) => {
     show: false,
   });
 
-  win.loadURL(`file://${__dirname}/index.html#/addPaper?id=${p?.id || ''}`);
+  win.loadURL(`file://${__dirname}/#/addPaper?id=${p?.id || ''}`);
   win.once('ready-to-show', () => {
     win.show();
   });

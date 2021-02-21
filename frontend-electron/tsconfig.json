@@ -25,7 +25,7 @@
   "exclude": [
     "test",
     "release",
-    "src/main.prod.js",
+    "src/electron-main/main.prod.js",
     "src/renderer.prod.js",
     "src/dist",
     ".erb/dll"

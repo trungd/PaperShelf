@@ -5,8 +5,8 @@ import {
   BrowserWindow,
   MenuItemConstructorOptions,
 } from 'electron';
-import { dataStore, store } from './utils/store';
-import { openModalEditPaper } from './utils/broadcast';
+import { dataStore, store } from '../utils/store';
+import { toggleDistractionFreeMode } from '../utils/broadcast';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
   selector?: string;
@@ -99,32 +99,12 @@ export default class MenuBuilder {
       ],
     };
 
-    const subMenuFile: DarwinMenuItemConstructorOptions = {
-      label: 'File',
-      submenu: [
-        {
-          label: 'Add Paper',
-          accelerator: 'Command+N',
-          selector: 'new:',
-          click: () => openModalEditPaper(),
-        },
-      ],
-    };
-
     const subMenuEdit: DarwinMenuItemConstructorOptions = {
       label: 'Edit',
       submenu: [
         // { label: 'Undo', accelerator: 'Command+Z', selector: 'undo:' },
         // { label: 'Redo', accelerator: 'Shift+Command+Z', selector: 'redo:' },
         // { type: 'separator' },
-        { label: 'Cut', accelerator: 'Command+X', selector: 'cut:' },
-        { label: 'Copy', accelerator: 'Command+C', selector: 'copy:' },
-        { label: 'Paste', accelerator: 'Command+V', selector: 'paste:' },
-        {
-          label: 'Select All',
-          accelerator: 'Command+A',
-          selector: 'selectAll:',
-        },
         { label: 'Delete', accelerator: 'Command+Del', selector: 'del:' },
       ],
     };
@@ -132,24 +112,8 @@ export default class MenuBuilder {
       label: 'View',
       submenu: [
         {
-          label: 'Appearance',
-          submenu: [
-            {
-              label: 'Show Side Bar',
-              click: () => {
-                store.set('view.showSideBar', !store.get('view.showSideBar'));
-              },
-            },
-            {
-              label: 'Show Status Bar',
-              click: () => {
-                store.set(
-                  'view.showStatusBar',
-                  !store.get('view.showStatusBar')
-                );
-              },
-            },
-          ],
+          label: 'Distraction Free Mode',
+          click: () => toggleDistractionFreeMode(this.mainWindow),
         },
         {
           label: 'Reload',
@@ -237,14 +201,7 @@ export default class MenuBuilder {
         ? subMenuViewDev
         : subMenuViewProd;
 
-    return [
-      subMenuAbout,
-      subMenuFile,
-      subMenuEdit,
-      subMenuView,
-      subMenuWindow,
-      subMenuHelp,
-    ];
+    return [subMenuAbout, subMenuEdit, subMenuView, subMenuWindow, subMenuHelp];
   }
 
   buildDefaultTemplate() {

@@ -8,16 +8,32 @@ class Collection {
 
   papers: string[] = [];
 
+  show = true;
+
   constructor(c: Record<string, unknown>) {
     Object.assign(this, c);
   }
 
-  static delete(key: string) {
-    dataStore.delete(`collections.${key}`);
+  delete() {
+    dataStore.delete(`collections.${this.key}`);
+  }
+
+  has(id: string) {
+    return this.papers.includes(id);
+  }
+
+  toggle(id: string) {
+    if (this.has(id)) this.papers = this.papers.filter((s) => s !== id);
+    else this.papers = [...this.papers, id];
+    this.serialize();
   }
 
   serialize() {
-    dataStore.set(`collections.${this.key}`, pick(this, ['id', 'title']));
+    dataStore.set(
+      `collections.${this.key}`,
+      pick(this, ['key', 'name', 'papers', 'show'])
+    );
+    return this;
   }
 }
 

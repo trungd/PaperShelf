@@ -2,12 +2,12 @@ import React, { ElementRef, useEffect, useRef, useState } from 'react';
 
 import { Document, Page, pdfjs } from 'react-pdf';
 import {
+  AcceptIcon,
+  AddIcon,
   BookmarkIcon,
   Box,
   DownloadIcon,
   Flex,
-  InfoIcon,
-  Loader,
   OpenOutsideIcon,
   ShareGenericIcon,
   Toolbar,
@@ -17,23 +17,25 @@ import {
 } from '@fluentui/react-northstar';
 import Paper from '../utils/paper';
 import { store } from '../utils/store';
-import { getCollections } from '../utils/collection';
+import Collection from '../utils/collection';
 // right after your imports
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 type PdfViewerProps = {
   width: number;
-  paper?: Paper;
+  paper: Paper | null;
+  collections: Collection[];
 };
 
-function PdfViewer({ width, paper }: PdfViewerProps) {
+function PdfViewer({ width, paper = null, collections }: PdfViewerProps) {
   const padLeft = 8;
   const padRight = 0;
+  const padTop = 8;
   const [toolBarItems, setToolBarItems] = useState<string[]>([]);
   const [menuOpenBookmark, setMenuOpenBookmark] = useState<boolean>();
 
   const [numPages, setNumPages] = useState(0);
-  const [, setCurrentPage] = useState<string>();
+  const [currentPage, setCurrentPage] = useState(0);
   const [zoomPercentage, setZoomPercentage] = useState<number>(100);
 
   const [viewWidth, setViewWidth] = useState(0);
@@ -41,7 +43,7 @@ function PdfViewer({ width, paper }: PdfViewerProps) {
   const [pageHeight, setPageHeight] = useState<string>();
   const [pageMarginLeft, setPageMarginLeft] = useState<number>(0);
 
-  const container = useRef(null);
+  const container = useRef<ElementRef<'div'>>();
   const pageRef: Record<number, ElementRef<'div'> | null> = {};
 
   const zoom = (p: number) => {
@@ -58,9 +60,9 @@ function PdfViewer({ width, paper }: PdfViewerProps) {
     zoom(paper?.zoomPercentage || 1);
   };
 
-  const onItemClick = ({ pageNumber }: { pageNumber: string }) => {
-    setCurrentPage(pageNumber);
-  };
+  // const onItemClick = ({ pageNumber }: { pageNumber: string }) => {
+  //   setCurrentPage(parseInt(pageNumber));
+  // };
 
   const onRenderSuccess = (i: number) => {
     if (!paper) return;
@@ -69,7 +71,9 @@ function PdfViewer({ width, paper }: PdfViewerProps) {
       'div.react-pdf__Page__textContent'
     ) as HTMLElement;
 
-    setPageHeight(pageDom?.style.height);
+    if (pageDom) {
+      setPageHeight(pageDom.style.height);
+    }
     /*
     const text = Array.prototype.slice
       // eslint-disable-next-line react/no-find-dom-node
@@ -87,6 +91,16 @@ function PdfViewer({ width, paper }: PdfViewerProps) {
     setToolBarItems(store.get('toolBar.items'));
   }, []);
 
+  const onScroll = (e) => {
+    if (pageHeight) {
+      const page = Math.floor(
+        e.target.scrollTop /
+          (parseInt(pageHeight.slice(0, -2), 10) + 2 * padTop)
+      );
+      setCurrentPage(page);
+    }
+  };
+
   useEffect(() => {
     if (!paper) return;
     setPageWidth(((viewWidth - padLeft - padRight) * zoomPercentage) / 100);
@@ -103,65 +117,59 @@ function PdfViewer({ width, paper }: PdfViewerProps) {
     },
     zoomIn: {
       icon: <ZoomInIcon />,
-      key: 'bold',
-      kind: 'toggle',
-      // active: state.bold,
-      title: 'Toggle bold',
+      key: 'zoom-in',
+      title: 'Zoom In',
       onClick: () => {
         zoom(zoomPercentage + 10);
       },
+      disabled: !paper,
     },
     zoomOut: {
       icon: <ZoomOutIcon />,
-      key: 'italic',
-      kind: 'toggle',
-      // active: state.italic,
-      title: 'Toggle italic',
+      key: 'zoom-out',
+      title: 'Zoom Out',
       onClick: () => {
         zoom(zoomPercentage - 10);
       },
+      disabled: !paper,
     },
     open: {
       icon: <OpenOutsideIcon />,
-      key: 'underline',
-      kind: 'toggle',
-      // active: state.underline,
-      title: 'Toggle underline',
+      key: 'open-default',
+      title: 'Open in Default App',
       onClick: () => paper?.openPdf(),
+      disabled: !paper,
     },
     download: {
       icon: <DownloadIcon />,
       key: 'download',
       title: 'Download',
-      disabled: !paper,
+      disabled: !paper || paper?.getLocalPath(),
       onClick: () => paper?.download(),
-    },
-    info: {
-      icon: (
-        <InfoIcon
-          {...{
-            outline: true,
-          }}
-        />
-      ),
-      key: 'info',
-      title: 'Info',
     },
     share: {
       icon: <ShareGenericIcon />,
-      key: 'indent',
-      title: 'Indent',
+      key: 'share',
+      title: 'Share',
+      disabled: !paper,
     },
     addToCollection: {
       key: 'collection',
       icon: <BookmarkIcon />,
       title: 'Add to Collection',
-      menu: getCollections().map((c) => ({
+      menu: collections.map((c) => ({
         key: c.key,
         content: c.name,
+        icon: paper?.id && c.has(paper.id) ? <AcceptIcon /> : <AddIcon />,
+        onClick: () => {
+          if (paper?.id) {
+            c.toggle(paper?.id);
+          }
+        },
       })),
       menuOpen: menuOpenBookmark,
       onMenuOpenChange: (_, p) => setMenuOpenBookmark(p?.menuOpen),
+      disabled: !paper,
     } as ToolbarItemProps,
   } as Record<string, ToolbarItemProps>;
 
@@ -171,28 +179,30 @@ function PdfViewer({ width, paper }: PdfViewerProps) {
         aria-label="Default"
         items={toolBarItems.map((name) => allToolBarItems[name])}
       />
-      <Box
+      <div
         style={{
           overflowY: 'auto',
           overflowX: 'hidden',
           position: 'relative',
           width: '100%',
           height: 'calc(100% - 32px)',
-          padding: `${padLeft}px 0 ${padLeft}px ${padLeft}px`,
+          padding: `${padTop}px 0 0 ${padLeft}px`,
           backgroundColor: 'gray',
         }}
+        onScroll={onScroll}
         ref={container}
       >
         {paper && (
           <Document
             file={paper.getLocalPath() || paper?.pdfUrl}
             onLoadSuccess={onDocumentLoadSuccess}
-            onItemClick={onItemClick}
+            // onItemClick={onItemClick}
             noData={<></>}
           >
             <Flex column gap="gap.small">
               {Array.from(new Array(numPages), (_, i) => (
                 <Box
+                  key={i}
                   style={{
                     border: 'gray',
                     backgroundColor: 'gray',
@@ -207,11 +217,7 @@ function PdfViewer({ width, paper }: PdfViewerProps) {
                       position: 'relative',
                       left: (viewWidth - padLeft - padRight) * pageMarginLeft,
                       backgroundColor: 'white',
-                      width: Math.min(
-                        ((viewWidth - padLeft - padRight) * zoomPercentage) /
-                          100,
-                        viewWidth - padLeft - padRight
-                      ),
+                      width: pageWidth,
                     }}
                   >
                     <div
@@ -222,15 +228,14 @@ function PdfViewer({ width, paper }: PdfViewerProps) {
                       <Page
                         width={pageWidth}
                         key={`page_${i + 1}`}
-                        pageIndex={i === 0 ? i : i}
-                        onRenderSuccess={() => onRenderSuccess(i)}
-                        noData={
-                          <Flex style={{ height: pageHeight }}>
-                            <Flex.Item grow>
-                              <Loader label="Loading..." />
-                            </Flex.Item>
-                          </Flex>
+                        pageIndex={
+                          currentPage - 1 <= i && i <= currentPage + 1
+                            ? i
+                            : undefined
                         }
+                        onRenderSuccess={() => onRenderSuccess(i)}
+                        noData={<Box style={{ height: pageHeight }} />}
+                        loading={<Box style={{ height: pageHeight }} />}
                       />
                     </div>
                   </Box>
@@ -239,13 +244,9 @@ function PdfViewer({ width, paper }: PdfViewerProps) {
             </Flex>
           </Document>
         )}
-      </Box>
+      </div>
     </Flex>
   );
 }
-
-PdfViewer.defaultProps = {
-  paper: undefined,
-};
 
 export default PdfViewer;

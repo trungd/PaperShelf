@@ -1,19 +1,8 @@
 import { shell, ipcRenderer } from 'electron';
 import fs from 'fs';
 import { pick } from 'lodash';
+import { ArxivPaper, searchArxiv } from './arxiv';
 import { store, dataStore } from './store';
-
-type ArxivPaper = {
-  id: string;
-  title: string;
-  url: string;
-  pdfUrl: string;
-  updated: Date;
-  published: Date;
-  abstract: string;
-  authors: string[];
-  categories: string[];
-};
 
 class Paper {
   id?: string;
@@ -61,9 +50,9 @@ class Paper {
     if (!this.id) {
       if (this.authors.length > 0 && this.year && this.title) {
         this.id =
-          this.authors[0].split(' ').slice(-1)[0] +
+          this.authors[0].split(' ').slice(-1)[0].toLowerCase() +
           this.year +
-          this.title.split(' ').slice(-1)[0];
+          this.title.split(' ')[0].toLowerCase();
       } else {
         this.id = Math.random().toString(36).slice(2);
       }
@@ -159,6 +148,12 @@ class Paper {
     this.serialize();
   }
 
+  remove() {
+    if (this.id) {
+      dataStore.delete(`papers.${this.id}`);
+    }
+  }
+
   getLocalPath() {
     if (!this.localPath) return null;
     if (fs.existsSync(this.localPath)) {
@@ -231,44 +226,6 @@ export function getAllAuthors() {
 export function getPaper(id: string) {
   const obj = dataStore.get(`papers.${id}`);
   return obj ? new Paper(obj) : null;
-}
-
-export function searchArxiv(searchQuery: string, start = 0, maxResults = 10) {
-  const getField = (field: string, e: Element, defaultValue = '') => {
-    const el = e.querySelector(field);
-    return el?.textContent || defaultValue;
-  };
-  const getPdfUrl = (id: string) => `${id.replace('abs', 'pdf')}.pdf`;
-
-  return fetch(
-    `http://export.arxiv.org/api/query?${new URLSearchParams({
-      search_query: searchQuery,
-      start: start.toString(),
-      max_results: maxResults.toString(),
-    }).toString()}`
-  )
-    .then((response) => response.text())
-    .then((str) => new window.DOMParser().parseFromString(str, 'text/xml'))
-    .then((data) => {
-      const entries = data.querySelectorAll('entry');
-      return Array.from(entries).map(
-        (e) =>
-          ({
-            id: getField('id', e).split('/').slice(-1)[0],
-            pdfUrl: getPdfUrl(getField('id', e)),
-            title: getField('title', e),
-            abstract: getField('summary', e),
-            updated: new Date(getField('updated', e)),
-            published: new Date(getField('published', e)),
-            authors: Array.from(e.querySelectorAll('author')).map(
-              (author) => author.querySelector('name')?.textContent
-            ),
-            categories: Array.from(
-              e.querySelectorAll('category')
-            ).map((category) => category.getAttribute('term')),
-          } as ArxivPaper)
-      );
-    });
 }
 
 export async function fetchPaper(p: Paper) {

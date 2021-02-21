@@ -14,9 +14,9 @@ import {
 } from '@fluentui/react-northstar';
 import { AiOutlineGlobal } from 'react-icons/ai';
 import { ipcRenderer } from 'electron';
-import Paper, { getLocalPapers, getPaper, searchArxiv } from '../utils/paper';
+import Paper from '../utils/paper';
+import { searchArxiv } from '../utils/arxiv';
 import { store } from '../utils/store';
-import { openModalEditPaper } from '../utils/broadcast';
 import Collection from '../utils/collection';
 
 require('format-unicorn');
@@ -24,17 +24,22 @@ require('format-unicorn');
 type PaperListProps = {
   width: number;
   onChange: (paper: Paper) => void;
+  onShowInfo: () => void;
   // eslint-disable-next-line react/require-default-props
   collection?: Collection;
+  allCollections: Collection[];
+  allPapers: Paper[];
 };
 
 const PaperList = ({
   width,
   onChange,
+  onShowInfo,
   collection = undefined,
+  allCollections,
+  allPapers,
 }: PaperListProps) => {
   const [selectedIndex, setSelectedIndex] = useState<number>();
-  const [localPapers, setLocalPapers] = useState<Paper[]>([]);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [papers, setPapers] = useState<Paper[]>([]);
@@ -84,7 +89,7 @@ const PaperList = ({
                 text: true,
                 title: 'Edit',
                 key: 'edit',
-                onClick: () => openModalEditPaper(p),
+                onClick: () => onShowInfo(),
               },
             ]),
       ]}
@@ -114,15 +119,18 @@ const PaperList = ({
   } */
 
   const refreshList = () => {
+    const papersInCollection = collection
+      ? allPapers.filter((p) => collection.papers.includes(p.id!))
+      : allPapers;
     if (searchQuery === '') {
-      setPapers(localPapers);
+      setPapers(papersInCollection);
     } else if (searchQuery[0] === '#') {
       const hashTags = searchQuery
         .split(' ')
         .map((s) => (s.length > 0 ? s.substring(1) : ''))
         .filter((s) => s !== '');
       setPapers(
-        localPapers.filter((it) =>
+        papersInCollection.filter((it) =>
           hashTags.every((tag) => [...it.tags].join(' ').indexOf(tag) >= 0)
         )
       );
@@ -130,7 +138,9 @@ const PaperList = ({
       setPapers([]);
       searchArxiv(searchQuery)
         .then((items) =>
-          items.map((arxivPaper) => new Paper().fromArxivPaper(arxivPaper))
+          setPapers(
+            items.map((arxivPaper) => new Paper().fromArxivPaper(arxivPaper))
+          )
         )
         .catch(() => {});
     }
@@ -145,15 +155,8 @@ const PaperList = ({
     refreshList();
     // TODO: debouncing
     // return () => { clearTimeout(timer); };
-  }, [searchQuery, refreshList]);
-  useEffect(refreshList, [localPapers]);
-  useEffect(() => {
-    if (collection) {
-      setLocalPapers(collection.papers.map((key) => getPaper(key)!));
-    } else {
-      setLocalPapers(getLocalPapers());
-    }
-  }, [collection]);
+  }, [searchQuery]);
+  useEffect(refreshList, [collection, allCollections, allPapers]);
 
   return (
     <Flex fill column>
@@ -186,7 +189,8 @@ const PaperList = ({
           selectedIndex={selectedIndex}
           onSelectedIndexChange={(_, p) => {
             setSelectedIndex(p?.selectedIndex);
-            if (p?.selectedIndex) onChange(papers[p?.selectedIndex]);
+            if (p?.selectedIndex !== undefined)
+              onChange(papers[p?.selectedIndex]);
           }}
         />
       </Box>

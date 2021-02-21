@@ -3,7 +3,7 @@
   "productName": "paper-drive",
   "version": "1.0.0",
   "description": "Paper Drive",
-  "main": "./main.prod.js",
+  "main": "electron-main/main.prod.js",
   "author": {
     "name": "Trung Dang",
     "email": "trungv.dang@outlook.com",

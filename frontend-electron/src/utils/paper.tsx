@@ -107,6 +107,7 @@ class Paper {
         ? [`year:${arxivPaper.updated.getFullYear()}`]
         : []),
     ]);
+    this.refresh();
     return this;
   }
 

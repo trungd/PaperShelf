@@ -24,6 +24,11 @@ const getCategoryName = (id: string) => {
 };
 
 export function searchArxiv(searchQuery: string, start = 0, maxResults = 10) {
+  const pattern = /https:\/\/arxiv.org\/abs\/([0-9]+\.[0-9]+)/;
+  const arxivId = pattern.test(searchQuery)
+    ? searchQuery.match(pattern)![1]
+    : null;
+
   const normalize = (t: string) => t.toLowerCase().replace(/\W/g, ' ');
   const getField = (field: string, e: Element, defaultValue = '') => {
     const el = e.querySelector(field);
@@ -33,7 +38,9 @@ export function searchArxiv(searchQuery: string, start = 0, maxResults = 10) {
 
   return fetch(
     `http://export.arxiv.org/api/query?${new URLSearchParams({
-      search_query: normalize(searchQuery),
+      ...(arxivId
+        ? { id_list: arxivId }
+        : { search_query: normalize(searchQuery) }),
       start: start.toString(),
       max_results: maxResults.toString(),
       sortBy: 'relevance',

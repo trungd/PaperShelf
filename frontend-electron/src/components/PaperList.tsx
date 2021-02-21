@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   ButtonGroup,
+  ButtonProps,
   DownloadIcon,
   EditIcon,
   Flex,
@@ -58,41 +59,37 @@ const PaperList = ({
 
   const getEndMedia = (p: Paper) => (
     <ButtonGroup
-      buttons={[
-        ...(!p.localPath
-          ? [
-              {
-                icon: <DownloadIcon />,
-                iconOnly: true,
-                text: true,
-                title: 'Download',
-                key: 'download',
-                onClick: () => p.download(),
-              },
-            ]
-          : []),
-        ...(!p.inLibrary
-          ? [
-              {
-                icon: <StarIcon />,
-                iconOnly: true,
-                text: true,
-                title: 'Add to Library',
-                key: 'add-to-library',
-                onClick: () => p.addToLibrary(),
-              },
-            ]
-          : [
-              {
-                icon: <EditIcon />,
-                iconOnly: true,
-                text: true,
-                title: 'Edit',
-                key: 'edit',
-                onClick: () => onShowInfo(),
-              },
-            ]),
-      ]}
+      buttons={
+        [
+          ...(p.inLibrary && !p.localPath
+            ? [
+                {
+                  icon: <DownloadIcon />,
+                  iconOnly: true,
+                  text: true,
+                  onClick: () => p.download(),
+                },
+              ]
+            : []),
+          ...(!p.inLibrary
+            ? [
+                {
+                  icon: <StarIcon />,
+                  iconOnly: true,
+                  text: true,
+                  onClick: () => p.addToLibrary(),
+                },
+              ]
+            : [
+                {
+                  icon: <EditIcon />,
+                  iconOnly: true,
+                  text: true,
+                  onClick: () => onShowInfo(),
+                },
+              ]),
+        ] as ButtonProps[]
+      }
     />
   );
 

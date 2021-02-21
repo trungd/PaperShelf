@@ -1,54 +1,252 @@
-import React, { Component, useState } from 'react';
-import { Document, Page, pdfjs } from 'react-pdf'
+import React, { ElementRef, useEffect, useRef, useState } from 'react';
+
+import { Document, Page, pdfjs } from 'react-pdf';
+import {
+  AcceptIcon,
+  AddIcon,
+  BookmarkIcon,
+  Box,
+  DownloadIcon,
+  Flex,
+  OpenOutsideIcon,
+  ShareGenericIcon,
+  Toolbar,
+  ToolbarItemProps,
+  ZoomInIcon,
+  ZoomOutIcon,
+} from '@fluentui/react-northstar';
+import Paper from '../utils/paper';
+import { store } from '../utils/store';
+import Collection from '../utils/collection';
 // right after your imports
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
-import { Segment, Flex } from '@fluentui/react-northstar'
-import { Paper } from '../types';
-import { getPaperLocation } from '../utils/paper';
 
 type PdfViewerProps = {
   width: number;
-  paper?: Paper;
-}
+  paper: Paper | null;
+  collections: Collection[];
+};
 
-type PdfViewerState = {
-  numPages: number
-}
+function PdfViewer({ width, paper = null, collections }: PdfViewerProps) {
+  const padLeft = 8;
+  const padRight = 0;
+  const padTop = 8;
+  const [toolBarItems, setToolBarItems] = useState<string[]>([]);
+  const [menuOpenBookmark, setMenuOpenBookmark] = useState<boolean>();
 
-export default ({ width, paper }: PdfViewerProps) => {
   const [numPages, setNumPages] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [zoomPercentage, setZoomPercentage] = useState<number>(100);
 
-  const onDocumentLoadSuccess = ({ numPages }) => setNumPages(numPages);
-  // const content = fs.readFileSync('/Users/trung/Documents/1508.01211.pdf', {encoding: 'base64'});
+  const [viewWidth, setViewWidth] = useState(0);
+  const [pageWidth, setPageWidth] = useState<number>();
+  const [pageHeight, setPageHeight] = useState<string>();
+  const [pageMarginLeft, setPageMarginLeft] = useState<number>(0);
 
-  const onItemClick = ({ pageNumber: itemPageNumber }) => {
-    setPageNumber(itemPageNumber);
-  }
+  const container = useRef<ElementRef<'div'>>();
+  const pageRef: Record<number, ElementRef<'div'> | null> = {};
 
+  const zoom = (p: number) => {
+    setZoomPercentage(p);
+    if (!paper) return;
+    // const currentWidth = (width - 2 * padding) * p / 100 + 2 * padding;
+    // container.current.scrollLeft = (currentWidth - width) / 2;
+    paper.zoomPercentage = p;
+    paper.serialize();
+  };
 
-    return (
-      <div style={{overflow: 'auto', height: 'calc(100vh - 80px)', width, backgroundColor: 'gray', padding: '8px'}}>
-        { paper && (
+  const onDocumentLoadSuccess = ({ numPages: num }: { numPages: number }) => {
+    setNumPages(num);
+    zoom(paper?.zoomPercentage || 1);
+  };
+
+  // const onItemClick = ({ pageNumber }: { pageNumber: string }) => {
+  //   setCurrentPage(parseInt(pageNumber));
+  // };
+
+  const onRenderSuccess = (i: number) => {
+    if (!paper) return;
+    zoom(paper?.zoomPercentage);
+    const pageDom = pageRef[i]?.querySelector(
+      'div.react-pdf__Page__textContent'
+    ) as HTMLElement;
+
+    if (pageDom) {
+      setPageHeight(pageDom.style.height);
+    }
+    /*
+    const text = Array.prototype.slice
+      // eslint-disable-next-line react/no-find-dom-node
+      .call(ReactDOM.findDOMNode(pageDom)?.childNodes)
+      .map((n: Node) => ({
+        text: n.textContent,
+        fontSize: n.style['font-size'],
+        top: n.style.top,
+        left: n.style.left,
+      }));
+     */
+  };
+
+  useEffect(() => {
+    setToolBarItems(store.get('toolBar.items'));
+  }, []);
+
+  const onScroll = (e) => {
+    if (pageHeight) {
+      const page = Math.floor(
+        e.target.scrollTop /
+          (parseInt(pageHeight.slice(0, -2), 10) + 2 * padTop)
+      );
+      setCurrentPage(page);
+    }
+  };
+
+  useEffect(() => {
+    if (!paper) return;
+    setPageWidth(((viewWidth - padLeft - padRight) * zoomPercentage) / 100);
+    setPageMarginLeft((1 - paper?.zoomPercentage / 100) / 2);
+  }, [paper, zoomPercentage, viewWidth]);
+
+  useEffect(() => {
+    setViewWidth(width - 16);
+  }, [width]);
+
+  const allToolBarItems = {
+    divider: {
+      kind: 'divider',
+    },
+    zoomIn: {
+      icon: <ZoomInIcon />,
+      key: 'zoom-in',
+      title: 'Zoom In',
+      onClick: () => {
+        zoom(zoomPercentage + 10);
+      },
+      disabled: !paper,
+    },
+    zoomOut: {
+      icon: <ZoomOutIcon />,
+      key: 'zoom-out',
+      title: 'Zoom Out',
+      onClick: () => {
+        zoom(zoomPercentage - 10);
+      },
+      disabled: !paper,
+    },
+    open: {
+      icon: <OpenOutsideIcon />,
+      key: 'open-default',
+      title: 'Open in Default App',
+      onClick: () => paper?.openPdf(),
+      disabled: !paper,
+    },
+    download: {
+      icon: <DownloadIcon />,
+      key: 'download',
+      title: 'Download',
+      disabled: !paper || paper?.getLocalPath(),
+      onClick: () => paper?.download(),
+    },
+    share: {
+      icon: <ShareGenericIcon />,
+      key: 'share',
+      title: 'Share',
+      disabled: !paper,
+    },
+    addToCollection: {
+      key: 'collection',
+      icon: <BookmarkIcon />,
+      title: 'Add to Collection',
+      menu: collections.map((c) => ({
+        key: c.key,
+        content: c.name,
+        icon: paper?.id && c.has(paper.id) ? <AcceptIcon /> : <AddIcon />,
+        onClick: () => {
+          if (paper?.id) {
+            c.toggle(paper?.id);
+          }
+        },
+      })),
+      menuOpen: menuOpenBookmark,
+      onMenuOpenChange: (_, p) => setMenuOpenBookmark(p?.menuOpen),
+      disabled: !paper,
+    } as ToolbarItemProps,
+  } as Record<string, ToolbarItemProps>;
+
+  return (
+    <Flex column styles={{ width: '100%', height: '100%' }}>
+      <Toolbar
+        aria-label="Default"
+        items={toolBarItems.map((name) => allToolBarItems[name])}
+      />
+      <div
+        style={{
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          position: 'relative',
+          width: '100%',
+          height: 'calc(100% - 32px)',
+          padding: `${padTop}px 0 0 ${padLeft}px`,
+          backgroundColor: 'gray',
+        }}
+        onScroll={onScroll}
+        ref={container}
+      >
+        {paper && (
           <Document
-            file={getPaperLocation(paper!) || paper!.url}
+            file={paper.getLocalPath() || paper?.pdfUrl}
             onLoadSuccess={onDocumentLoadSuccess}
-            onItemClick={onItemClick}
+            // onItemClick={onItemClick}
+            noData={<></>}
           >
-            <Flex column gap="gap.small" width={width - 16}>
-              {Array.from(
-                new Array(numPages),
-                (el, index) => (
-                  <Page
-                    size="A4"
-                    width={width - 24}
-                    key={`page_${index + 1}`}
-                    pageNumber={index + 1}
-                  />
-                ),
-              )}
+            <Flex column gap="gap.small">
+              {Array.from(new Array(numPages), (_, i) => (
+                <Box
+                  key={i}
+                  style={{
+                    border: 'gray',
+                    backgroundColor: 'gray',
+                    overflowX: 'hidden',
+                    overflowY: 'hidden',
+                    width: `calc(100% - ${padLeft + padRight})`,
+                    height: pageHeight,
+                  }}
+                >
+                  <Box
+                    style={{
+                      position: 'relative',
+                      left: (viewWidth - padLeft - padRight) * pageMarginLeft,
+                      backgroundColor: 'white',
+                      width: pageWidth,
+                    }}
+                  >
+                    <div
+                      ref={(el) => {
+                        pageRef[i] = el;
+                      }}
+                    >
+                      <Page
+                        width={pageWidth}
+                        key={`page_${i + 1}`}
+                        pageIndex={
+                          currentPage - 1 <= i && i <= currentPage + 1
+                            ? i
+                            : undefined
+                        }
+                        onRenderSuccess={() => onRenderSuccess(i)}
+                        noData={<Box style={{ height: pageHeight }} />}
+                        loading={<Box style={{ height: pageHeight }} />}
+                      />
+                    </div>
+                  </Box>
+                </Box>
+              ))}
             </Flex>
-          </Document>)
-        }
+          </Document>
+        )}
       </div>
-    )
+    </Flex>
+  );
 }
+
+export default PdfViewer;

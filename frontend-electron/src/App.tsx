@@ -1,201 +1,290 @@
-import React, { useState, Component } from 'react';
+import { throttle } from 'lodash';
+import React, { useEffect, useState } from 'react';
 import { HashRouter as Router, Switch, Route } from 'react-router-dom';
+import {
+  Flex,
+  Toolbar,
+  AddIcon,
+  Box,
+  Button,
+  ButtonProps,
+  Input,
+  Form,
+  TrashCanIcon,
+  BookmarkIcon,
+  MenuItemProps,
+} from '@fluentui/react-northstar';
+import { GiBookshelf } from 'react-icons/gi';
+import { BiAddToQueue, BiHide } from 'react-icons/bi';
 import PdfViewer from './components/PdfViewer';
 import PaperList from './components/PaperList';
-import Header from './components/Header';
-import icon from '../assets/icon.svg';
-import { Grid, Flex, Segment, Layout, Box, Toolbar, AddIcon, CloseIcon, ArrowSortIcon, QuoteIcon, LinkIcon, CodeSnippetIcon, Input, SearchIcon, Divider } from '@fluentui/react-northstar'
-import {
-  DownloadIcon, OpenOutsideIcon
-} from '@fluentui/react-icons-northstar'
 import './App.global.css';
-const fs = require('fs');
-const yaml = require('js-yaml');
-import _ from 'lodash';
-import throttle from "lodash/throttle";
-import { downloadPaper, getPaperLocation } from './utils/paper'
-import { shell } from 'electron';
 
+import PaperInfo from './components/PaperInfo';
+import Paper, { getLocalPapers } from './utils/paper';
 import { store } from './utils/store';
-import AddPaper from './views/addPaper';
+import Collection, { getCollections } from './utils/collection';
+import About from './views/about';
+import { onToggleDistractionFreeMode } from './utils/broadcast';
 
-type MainProps = {}
-type MainState = {
-  pdfWidth: number;
-  treeWidth: number;
-  selectedPaperId?: string;
-  papers: Paper[];
-  selectedPaper: Paper;
-}
+const NewCollectionPopup = ({ onAdd }: { onAdd: (name: string) => void }) => {
+  const [name, setName] = useState<string>();
 
-class Main extends Component<MainProps, MainState> {
-  constructor(props: MainProps) {
-    super(props)
+  return (
+    <Form
+      fields={[
+        {
+          label: 'name',
+          required: true,
+          inline: true,
+          control: {
+            as: Input,
+            value: name,
+            onChange: (_, p) => setName(p?.value),
+            showSuccessIndicator: false,
+          },
+        },
+        {
+          control: {
+            as: Button,
+            content: 'Add',
+            onClick: () => onAdd(name),
+          },
+        },
+      ]}
+    />
+  );
+};
 
-    this.state = {
-      treeWidth: 300,
-      pdfWidth: 0,
-      papers: [],
-      selectedPaperId: undefined,
-      selectedPaper: null
-    }
-  }
+const Main = () => {
+  const [isDistractionFree, setIsDistractionFree] = useState<boolean>(false);
+  const [sideBarWidth, setSideBarWidth] = useState<number>(300);
+  const [showPaperInfo, setShowPaperInfo] = useState<boolean>(false);
+  const [showSideBar, setShowSideBar] = useState<boolean>(true);
+  const [pdfWidth, setPdfWidth] = useState<number>(0);
+  const [height, setHeight] = useState<number>(0);
 
-  componentDidMount() {
-    this.setSize();
-    this.loadPapers();
-    window.addEventListener("resize", throttle(this.setSize, 500))
-  }
+  const [menuOpenNewCollection, setMenuOpenNewCollection] = useState<boolean>(
+    false
+  );
 
-  componentWillUnmount () {
-    window.removeEventListener("resize", throttle(this.setSize, 500))
-  }
+  const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
+  const [collection, setCollection] = useState<Collection>();
 
-  setSize = () => {
-    this.setState({ pdfWidth: window.innerWidth - this.state.treeWidth });
-  }
+  const [allCollections, setAllCollections] = useState<Collection[]>([]);
+  const [allPapers, setAllPapers] = useState<Papers[]>([]);
 
-  loadPapers = () => {
-    try {
-      let fileContents = fs.readFileSync(store.get('dataLocation') + '/papers.yml', 'utf8');
-      let data = yaml.load(fileContents);
-      this.setState({
-        papers: Object.fromEntries(
-          Object.entries(data.papers).map(([key, paper], i) => [
-            key, {
-              ...paper,
-              id: key
-            }]
-          )
-        )
-      });
-    } catch (e) {
-        console.log(e);
-    }
-  }
+  const [addTab, setAddTab] = useState<boolean>();
 
-  onSelectedPaperIndexChange = ({ id }: Paper) => {
-    this.setState({
-      selectedPaperId: id,
-      selectedPaper: this.state.papers[id]
-    })
-  }
+  const loadCollections = () => setAllCollections(getCollections());
 
-  render = () => {
-    const { selectedPaper } = this.state;
+  useEffect(() => {
+    onToggleDistractionFreeMode(() => {
+      if (isDistractionFree) {
+        setIsDistractionFree(false);
+        setShowSideBar(true);
+        setSideBarWidth(store.get('view.sideBarWidth'));
+      } else {
+        setIsDistractionFree(true);
+        setShowSideBar(false);
+        setSideBarWidth(0);
+      }
+    });
+  });
 
-    return (
-      <Flex column styles={{height: '100vh'}}>
-        <Toolbar
-          aria-label="Default"
-          items={[
-            {
-              icon: (<OpenOutsideIcon {...{ outline: true }} />),
-              key: 'open',
-              title: 'Open',
-              onClick: () => shell.openPath(getPaperLocation(selectedPaper)),
-            },
-            {
-              icon: (<DownloadIcon {...{ outline: true }} />),
-              key: 'download',
-              title: 'Download',
-              onClick: () => downloadPaper(selectedPaper),
-            },
-          ]}
-        />
-        <Flex.Item grow>
-          <Flex row>
-            <Flex column>
-              <Toolbar
-                aria-label="Default"
-                items={[
+  useEffect(() => {
+    const setSize = () => {
+      setHeight(window.innerHeight - 32);
+      setPdfWidth(window.innerWidth - sideBarWidth);
+    };
+
+    loadCollections();
+    setAllPapers(getLocalPapers());
+
+    setSize();
+    window.addEventListener('resize', throttle(setSize, 500));
+
+    setShowSideBar(store.get('view.showSideBar'));
+    setSideBarWidth(
+      store.get('view.showSideBar') ? store.get('view.sideBarWidth') : 0
+    );
+
+    return () => {
+      window.removeEventListener('resize', throttle(setSize, 500));
+    };
+  }, [sideBarWidth]);
+
+  // store.onDidChange('view', ({ showSideBar, sideBarWidth }) => {
+  //   console.log('Settings changed', showSideBar, sideBarWidth);
+  //   setShowSideBar(showSideBar);
+  //   setSideBarWidth(showSideBar ? sideBarWidth : 0);
+  // });
+
+  return (
+    <Flex column styles={{ height: '100vh', width: '100vw' }}>
+      <Toolbar
+        aria-label="Default"
+        items={[
+          {
+            kind: 'custom',
+            content: (
+              <Button.Group
+                buttons={[
                   {
-                    icon: (<DownloadIcon {...{ outline: true }} />),
-                    key: 'refresh',
-                    title: 'Refresh',
-                    onClick: () => this.loadPapers(),
+                    key: 'all',
+                    icon: <GiBookshelf />,
+                    text: true,
+                    content: 'All',
+                    primary: collection === undefined,
+                    size: 'small',
+                    onClick: () => setCollection(undefined),
                   },
-                  {
-                    icon: (
-                      <AddIcon
-                        {...{
-                          outline: true,
-                        }}
-                      />
+                  ...allCollections
+                    .filter((c) => c.show)
+                    .map(
+                      (c) =>
+                        ({
+                          key: c.key,
+                          text: true,
+                          content: c.name,
+                          size: 'small',
+                          primary: collection?.key === c.key,
+                          onClick: () => setCollection(c),
+                        } as ButtonProps)
                     ),
-                    key: 'add',
-                    title: 'Add Paper',
-                    // onClick: () => this.openAddPaperModal(),
-                  },
-                  {
-                    icon: (
-                      <CloseIcon
-                        {...{
-                          outline: true,
-                        }}
-                      />
-                    ),
-                    key: 'bold',
-                    kind: 'toggle',
-                    title: 'Toggle bold',
-                  },
-                  {
-                    key: 'divider-1',
-                    kind: 'divider',
-                  },
-                  {
-                    icon: (
-                      <ArrowSortIcon
-                        {...{
-                          outline: true,
-                        }}
-                      />
-                    ),
-                    key: 'more',
-                    title: 'More',
-                    menu: [
-                      {
-                        key: 'title',
-                        content: 'By Title',
-                        icon: <QuoteIcon />,
-                      },
-                      {
-                        key: 'author',
-                        content: 'By Author',
-                        icon: <LinkIcon />,
-                        // disabled: true,
-                      },
-                      {
-                        key: 'year',
-                        content: 'By Year',
-                        icon: <CodeSnippetIcon />,
-                      },
-                    ],
-                    // menuOpen: state.more,
-                  },
                 ]}
               />
+            ),
+          },
+          {
+            icon: <BiAddToQueue />,
+            key: 'add-tab',
+            active: addTab,
+            menu: [
+              {
+                key: 'new-collection',
+                content: 'New Collection',
+                icon: <BookmarkIcon />,
+                active: menuOpenNewCollection,
+                popup: (
+                  <NewCollectionPopup
+                    onAdd={(name: string) => {
+                      setMenuOpenNewCollection(false);
+                      if (name) {
+                        setAllCollections([
+                          ...allCollections,
+                          new Collection({
+                            name,
+                            key: name.toLowerCase().replace(/\W/g, '-'),
+                          }).serialize(),
+                        ]);
+                      }
+                    }}
+                  />
+                ),
+                menuOpen: menuOpenNewCollection,
+                onMenuOpenChange: (_, { menuOpen }) => {
+                  setMenuOpenNewCollection(menuOpen);
+                },
+              },
+              { key: 'divider-1', kind: 'divider' },
+              ...((arr: MenuItemProps[]) => {
+                return arr.length > 0
+                  ? [...arr, { key: 'divider-2', kind: 'divider' }]
+                  : [];
+              }) // apppend 'divider' if length > 0
+                .call(
+                  null,
+                  allCollections
+                    .filter((c) => !c.show)
+                    .map(
+                      (c) =>
+                        ({
+                          key: `open-${c.name}`,
+                          content: c.name,
+                          icon: <AddIcon />,
+                          onClick: () => {
+                            c.show = true;
+                            c.serialize();
+                            setCollection(c);
+                          },
+                        } as MenuItemProps)
+                    )
+                ),
+              {
+                key: 'hide-collection',
+                content: 'Hide Collection',
+                disabled: collection === undefined,
+                icon: <BiHide />,
+                onClick: () => {
+                  if (collection) {
+                    collection.show = false;
+                    collection.serialize();
+                    setCollection(undefined);
+                  }
+                },
+              },
+              {
+                key: 'remove-collection',
+                content: 'Delete Collection',
+                disabled: collection === undefined,
+                icon: <TrashCanIcon />,
+                onClick: () => {
+                  collection?.delete();
+                  setCollection(undefined);
+                  loadCollections();
+                },
+              },
+            ],
+            menuOpen: addTab,
+            onMenuOpenChange: (_, p) => setAddTab(p?.menuOpen),
+          },
+        ]}
+      />
+      <Flex.Item grow>
+        <Flex>
+          {showSideBar && (
+            <Box style={{ width: `${sideBarWidth}px`, height: `${height}px` }}>
               <PaperList
-                width={this.state.treeWidth}
-                onSelectedIndexChange={this.onSelectedPaperIndexChange}
+                collection={collection}
+                allCollections={allCollections}
+                allPapers={allPapers}
+                width={sideBarWidth}
+                onChange={(paper) => setSelectedPaper(paper)}
+                onShowInfo={() => setShowPaperInfo(true)}
               />
-            </Flex>
-            <Box width={this.state.pdfWidth}>
-              <PdfViewer paper={selectedPaper} width={this.state.pdfWidth} />
             </Box>
-          </Flex>
-        </Flex.Item>
-        <div>Footer</div>
-      </Flex>
-    );
-  }
+          )}
+          <Box
+            style={{
+              width: `calc(100vw - ${sideBarWidth}px`,
+              height: `${height}px`,
+            }}
+          >
+            {showPaperInfo ? (
+              <PaperInfo
+                paper={selectedPaper}
+                onClose={() => setShowPaperInfo(false)}
+              />
+            ) : (
+              <PdfViewer
+                paper={selectedPaper}
+                width={pdfWidth}
+                collections={allCollections}
+              />
+            )}
+          </Box>
+        </Flex>
+      </Flex.Item>
+    </Flex>
+  );
 };
 
 export default function App() {
   return (
     <Router>
       <Switch>
-        <Route path="/addPaper" component={AddPaper} />
+        <Route path="/about" component={About} />
         <Route path="/" component={Main} />
       </Switch>
     </Router>

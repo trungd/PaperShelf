@@ -6,18 +6,22 @@
  * through IPC.
  *
  * When running `yarn build` or `yarn build-main`, this file is compiled to
- * `./src/main.prod.js` using webpack. This gives us some performance wins.
+ * `./src/electron-main/main.prod.js` using webpack. This gives us some performance wins.
  */
 import 'core-js/stable';
 import 'regenerator-runtime/runtime';
 import path from 'path';
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
-import MenuBuilder from './menu';
 import Store from 'electron-store';
-Store.initRenderer();
+import electronDl, { download } from 'electron-dl';
+import MenuBuilder from './menu';
+import initContextMenu from './contextMenu';
+import Paper from '../utils/paper';
 
+electronDl();
+Store.initRenderer();
 
 export default class AppUpdater {
   constructor() {
@@ -71,17 +75,18 @@ const createWindow = async () => {
   };
 
   mainWindow = new BrowserWindow({
+    title: 'Paper Drive',
     show: false,
     width: 1024,
     height: 728,
     icon: getAssetPath('icon.png'),
     webPreferences: {
       nodeIntegration: true,
-      webSecurity: false
+      webSecurity: false,
     },
   });
 
-  mainWindow.loadURL(`file://${__dirname}/index.html`);
+  mainWindow.loadURL(`file://${__dirname}/../index.html`);
 
   // @TODO: Use 'ready-to-show' event
   //        https://github.com/electron/electron/blob/master/docs/api/browser-window.md#using-ready-to-show-event
@@ -127,10 +132,52 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.whenReady().then(createWindow).catch(console.log);
+app
+  .whenReady()
+  .then(createWindow)
+  .then(() => initContextMenu(mainWindow))
+  .catch(console.log);
+
+ipcMain.on('modal-edit-paper', (_, p?: Paper) => {
+  const win = new BrowserWindow({
+    title: p ? 'Edit Paper' : 'New Paper',
+    width: 500,
+    height: 600,
+    minWidth: 500,
+    minHeight: 600,
+    minimizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    parent: mainWindow || undefined,
+    modal: false,
+    frame: true,
+    webPreferences: {
+      nodeIntegration: true,
+      enableRemoteModule: true,
+    },
+    show: false,
+  });
+
+  win.loadURL(`file://${__dirname}/#/addPaper?id=${p?.id || ''}`);
+  win.once('ready-to-show', () => {
+    win.show();
+  });
+});
+
+ipcMain.on('download', (_, { url, directory, filename }) => {
+  download(mainWindow, url, {
+    filename,
+    directory,
+    showBadge: false,
+  }).catch(() => {});
+});
 
 app.on('activate', () => {
   // On macOS it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
   if (mainWindow === null) createWindow();
+});
+
+ipcMain.on('context', (_, { itemType, itemId }) => {
+  console.log('main-context-menu', itemType, itemId);
 });

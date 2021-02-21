@@ -2,25 +2,15 @@ import {
   app,
   Menu,
   shell,
-  BrowserWindow, remote,
+  BrowserWindow,
   MenuItemConstructorOptions,
 } from 'electron';
+import { dataStore, store } from '../utils/store';
+import { toggleDistractionFreeMode } from '../utils/broadcast';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
   selector?: string;
   submenu?: DarwinMenuItemConstructorOptions[] | Menu;
-}
-
-const openAddPaperModal = (parent) => {
-  let win = new BrowserWindow({
-    // parent,
-    modal: true,
-    webPreferences: {
-      nodeIntegration: true
-    }
-  })
-  var theUrl = 'file://' + __dirname + '/index.html#/addPaper'
-  win.loadURL(theUrl);
 }
 
 export default class MenuBuilder {
@@ -73,7 +63,19 @@ export default class MenuBuilder {
           selector: 'orderFrontStandardAboutPanel:',
         },
         { type: 'separator' },
-        { label: 'Services', submenu: [] },
+        {
+          label: 'Preferences',
+          submenu: [
+            {
+              label: 'General',
+              click: () => store.openInEditor(),
+            },
+            {
+              label: 'Saved Data',
+              click: () => dataStore.openInEditor(),
+            },
+          ],
+        },
         { type: 'separator' },
         {
           label: 'Hide PaperDrive',
@@ -97,38 +99,22 @@ export default class MenuBuilder {
       ],
     };
 
-    const subMenuFile: DarwinMenuItemConstructorOptions = {
-      label: 'File',
-      submenu: [
-        {
-          label: 'Add Paper',
-          accelerator: 'Command+N',
-          selector: 'new:',
-          click: () => openAddPaperModal(this.mainWindow)
-        }
-      ]
-    }
-
     const subMenuEdit: DarwinMenuItemConstructorOptions = {
       label: 'Edit',
       submenu: [
-        //{ label: 'Undo', accelerator: 'Command+Z', selector: 'undo:' },
-        //{ label: 'Redo', accelerator: 'Shift+Command+Z', selector: 'redo:' },
-        //{ type: 'separator' },
-        { label: 'Cut', accelerator: 'Command+X', selector: 'cut:' },
-        { label: 'Copy', accelerator: 'Command+C', selector: 'copy:' },
-        { label: 'Paste', accelerator: 'Command+V', selector: 'paste:' },
-        {
-          label: 'Select All',
-          accelerator: 'Command+A',
-          selector: 'selectAll:',
-        },
+        // { label: 'Undo', accelerator: 'Command+Z', selector: 'undo:' },
+        // { label: 'Redo', accelerator: 'Shift+Command+Z', selector: 'redo:' },
+        // { type: 'separator' },
         { label: 'Delete', accelerator: 'Command+Del', selector: 'del:' },
       ],
     };
     const subMenuViewDev: MenuItemConstructorOptions = {
       label: 'View',
       submenu: [
+        {
+          label: 'Distraction Free Mode',
+          click: () => toggleDistractionFreeMode(this.mainWindow),
+        },
         {
           label: 'Reload',
           accelerator: 'Command+R',
@@ -215,7 +201,7 @@ export default class MenuBuilder {
         ? subMenuViewDev
         : subMenuViewProd;
 
-    return [subMenuAbout, subMenuFile, subMenuEdit, subMenuView, subMenuWindow, subMenuHelp];
+    return [subMenuAbout, subMenuEdit, subMenuView, subMenuWindow, subMenuHelp];
   }
 
   buildDefaultTemplate() {
@@ -314,18 +300,3 @@ export default class MenuBuilder {
     return templateDefault;
   }
 }
-
-
-const contextMenu = require('electron-context-menu');
-contextMenu({
-  prepend: (params, browserWindow) => [
-    {
-      label: "Test",
-      role: "zoomIn",
-      visible: params
-    },
-    {
-      role: "zoomOut"
-    },
-  ],
-});

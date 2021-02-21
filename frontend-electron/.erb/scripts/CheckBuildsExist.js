@@ -3,7 +3,7 @@ import path from 'path';
 import chalk from 'chalk';
 import fs from 'fs';
 
-const mainPath = path.join(__dirname, '../../src/main.prod.js');
+const mainPath = path.join(__dirname, '../../src/electron-main/main.prod.js');
 const rendererPath = path.join(
   __dirname, '../../src/dist/renderer.prod.js'
 );

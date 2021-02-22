@@ -28,6 +28,11 @@ class Collection {
     this.serialize();
   }
 
+  addPaper(id: string) {
+    this.papers = [...new Set([...this.papers, id])];
+    this.serialize();
+  }
+
   serialize() {
     dataStore.set(
       `collections.${this.key}`,

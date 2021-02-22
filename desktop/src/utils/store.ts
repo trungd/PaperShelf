@@ -9,27 +9,25 @@ export const store = new Store({
     paperLocation: path.join(app?.getPath('home') || '.', 'PaperShelf'),
     autoDownload: false,
     paperList: {
-      liveSearch: false,
       titleFormat: '{title}',
       descFormat: '{authorShort}, {year}',
+    },
+    searchFields: ['title', 'tags', 'authors', 'abstract'],
+    search: {
+      live: false,
     },
     view: {
       showSideBar: true,
       sideBarWidth: 300,
     },
     defaultTags: ['year:2020', 'year:2021'],
-    toolBar: {
-      items: [
-        'zoomIn',
-        'zoomOut',
-        'divider',
-        'addToCollection',
-        'divider',
-        'download',
-        'open',
-        // 'share',
-      ],
-    },
+    pdfViewerToolbar: [
+      'zoomIn',
+      'zoomOut',
+      'divider',
+      'open',
+      // 'share',
+    ],
   },
   fileExtension: 'yaml',
   serialize: yaml.dump,

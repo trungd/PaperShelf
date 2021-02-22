@@ -23,7 +23,11 @@ const getCategoryName = (id: string) => {
   return id;
 };
 
-export function searchArxiv(searchQuery: string, start = 0, maxResults = 10) {
+export async function searchArxiv(
+  searchQuery: string,
+  start = 0,
+  maxResults = 10
+) {
   const pattern = /https:\/\/arxiv.org\/abs\/([0-9]+\.[0-9]+)/;
   const arxivId = pattern.test(searchQuery)
     ? searchQuery.match(pattern)![1]
@@ -36,7 +40,7 @@ export function searchArxiv(searchQuery: string, start = 0, maxResults = 10) {
   };
   const getPdfUrl = (id: string) => `${id.replace('abs', 'pdf')}.pdf`;
 
-  return fetch(
+  const response = await fetch(
     `http://export.arxiv.org/api/query?${new URLSearchParams({
       ...(arxivId
         ? { id_list: arxivId }
@@ -45,27 +49,25 @@ export function searchArxiv(searchQuery: string, start = 0, maxResults = 10) {
       max_results: maxResults.toString(),
       sortBy: 'relevance',
     }).toString()}`
-  )
-    .then((response) => response.text())
-    .then((str) => new window.DOMParser().parseFromString(str, 'text/xml'))
-    .then((data) => {
-      const entries = data.querySelectorAll('entry');
-      return Array.from(entries).map(
-        (e) =>
-          ({
-            id: getField('id', e).split('/').slice(-1)[0],
-            pdfUrl: getPdfUrl(getField('id', e)),
-            title: getField('title', e),
-            abstract: getField('summary', e).trim(),
-            updated: new Date(getField('updated', e)),
-            published: new Date(getField('published', e)),
-            authors: Array.from(e.querySelectorAll('author')).map(
-              (author) => author.querySelector('name')?.textContent
-            ),
-            categories: Array.from(
-              e.querySelectorAll('category')
-            ).map((category) => getCategoryName(category.getAttribute('term'))),
-          } as ArxivPaper)
-      );
-    });
+  );
+  const str = await response.text();
+  const data = new window.DOMParser().parseFromString(str, 'text/xml');
+  const entries = data.querySelectorAll('entry');
+  return Array.from(entries).map(
+    (e_1) =>
+      ({
+        id: getField('id', e_1).split('/').slice(-1)[0],
+        pdfUrl: getPdfUrl(getField('id', e_1)),
+        title: getField('title', e_1),
+        abstract: getField('summary', e_1).trim(),
+        updated: new Date(getField('updated', e_1)),
+        published: new Date(getField('published', e_1)),
+        authors: Array.from(e_1.querySelectorAll('author')).map(
+          (author) => author.querySelector('name')?.textContent
+        ),
+        categories: Array.from(
+          e_1.querySelectorAll('category')
+        ).map((category) => getCategoryName(category.getAttribute('term'))),
+      } as ArxivPaper)
+  );
 }

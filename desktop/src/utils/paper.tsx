@@ -2,6 +2,7 @@ import { shell, ipcRenderer } from 'electron';
 import fs from 'fs';
 import { pick } from 'lodash';
 import { ArxivPaper, searchArxiv } from './arxiv';
+import Collection from './collection';
 import { store, dataStore } from './store';
 
 class Paper {
@@ -146,6 +147,17 @@ class Paper {
   addToLibrary() {
     this.inLibrary = true;
     if (store.get('autoDownload')) this.download();
+    this.serialize();
+  }
+
+  inCollection(c?: Collection) {
+    if (c) return this.id ? c.has(this.id) : false;
+    return this.inLibrary;
+  }
+
+  addToCollection(c: Collection) {
+    if (!this.id) this.serialize();
+    c.addPaper(this.id!);
     this.serialize();
   }
 

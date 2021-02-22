@@ -2,11 +2,7 @@ import React, { ElementRef, useEffect, useRef, useState } from 'react';
 
 import { Document, Page, pdfjs } from 'react-pdf';
 import {
-  AcceptIcon,
-  AddIcon,
-  BookmarkIcon,
   Box,
-  DownloadIcon,
   Flex,
   OpenOutsideIcon,
   ShareGenericIcon,
@@ -17,22 +13,19 @@ import {
 } from '@fluentui/react-northstar';
 import Paper from '../utils/paper';
 import { store } from '../utils/store';
-import Collection from '../utils/collection';
 // right after your imports
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 type PdfViewerProps = {
   width: number;
   paper: Paper | null;
-  collections: Collection[];
 };
 
-function PdfViewer({ width, paper = null, collections }: PdfViewerProps) {
+function PdfViewer({ width, paper = null }: PdfViewerProps) {
   const padLeft = 8;
   const padRight = 0;
   const padTop = 8;
   const [toolBarItems, setToolBarItems] = useState<string[]>([]);
-  const [menuOpenBookmark, setMenuOpenBookmark] = useState<boolean>();
 
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
@@ -88,7 +81,7 @@ function PdfViewer({ width, paper = null, collections }: PdfViewerProps) {
   };
 
   useEffect(() => {
-    setToolBarItems(store.get('toolBar.items'));
+    setToolBarItems(store.get('pdfViewerToolbar'));
   }, []);
 
   const onScroll = (e) => {
@@ -140,37 +133,12 @@ function PdfViewer({ width, paper = null, collections }: PdfViewerProps) {
       onClick: () => paper?.openPdf(),
       disabled: !paper,
     },
-    download: {
-      icon: <DownloadIcon />,
-      key: 'download',
-      title: 'Download',
-      disabled: !paper || paper?.getLocalPath(),
-      onClick: () => paper?.download(),
-    },
     share: {
       icon: <ShareGenericIcon />,
       key: 'share',
       title: 'Share',
       disabled: !paper,
     },
-    addToCollection: {
-      key: 'collection',
-      icon: <BookmarkIcon />,
-      title: 'Add to Collection',
-      menu: collections.map((c) => ({
-        key: c.key,
-        content: c.name,
-        icon: paper?.id && c.has(paper.id) ? <AcceptIcon /> : <AddIcon />,
-        onClick: () => {
-          if (paper?.id) {
-            c.toggle(paper?.id);
-          }
-        },
-      })),
-      menuOpen: menuOpenBookmark,
-      onMenuOpenChange: (_, p) => setMenuOpenBookmark(p?.menuOpen),
-      disabled: !paper,
-    } as ToolbarItemProps,
   } as Record<string, ToolbarItemProps>;
 
   return (

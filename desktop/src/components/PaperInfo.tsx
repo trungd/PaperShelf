@@ -18,9 +18,14 @@ import Paper, { fetchPaper, getAllAuthors, getAllTags } from '../utils/paper';
 type PaperInfoProps = {
   paper: Paper | null;
   onClose: () => void;
+  onRemovePaper: (paper: Paper) => void;
 };
 
-export default function PaperInfo({ paper, onClose }: PaperInfoProps) {
+export default function PaperInfo({
+  paper,
+  onClose,
+  onRemovePaper,
+}: PaperInfoProps) {
   const [isAutoFillLoading, setIsAutoFillLoading] = useState<boolean>(false);
 
   const [title, setTitle] = useState<string>('');
@@ -60,7 +65,7 @@ export default function PaperInfo({ paper, onClose }: PaperInfoProps) {
 
   const remove = () => {
     if (paper != null) {
-      paper.remove();
+      onRemovePaper(paper);
     }
   };
 

@@ -1,6 +1,5 @@
 # PaperShelf
 
-![linter](https://github.com/trungd/PaperShelf/actions/workflows/linter.yml/badge.svg)
 ![test](https://github.com/trungd/PaperShelf/actions/workflows/test.yml/badge.svg)
 ![publish](https://github.com/trungd/PaperShelf/actions/workflows/publish.yml/badge.svg)
 

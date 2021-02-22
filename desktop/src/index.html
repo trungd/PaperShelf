@@ -2,20 +2,21 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <script>
-      (() => {
-        if (process?.env?.NODE_ENV !== 'development') {
-          const link = document.createElement('link');
-          link.rel = 'stylesheet';
-          link.href = './dist/style.css';
-          // HACK: Writing the script path should be done with webpack
-          document.getElementsByTagName('head')[0].appendChild(link);
-        }
-      })();
-    </script>
+    <title>PaperShelf</title>
   </head>
+  <script>
+    (() => {
+      if (process?.env?.NODE_ENV !== 'development') {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = './dist/style.css';
+        // HACK: Writing the script path should be done with webpack
+        document.getElementsByTagName('head')[0].appendChild(link);
+      }
+    })();
+  </script>
   <body>
-    <div id="root" style="height: 100vh; width: 100vw;"></div>
+    <div id="root" style="height: 100vh; width: 100vw"></div>
     <script>
       const scripts = [];
 

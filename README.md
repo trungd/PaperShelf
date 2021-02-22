@@ -1,7 +1,5 @@
-# PaperShelf
-
-![test](https://github.com/trungd/PaperShelf/actions/workflows/test.yml/badge.svg)
-![publish](https://github.com/trungd/PaperShelf/actions/workflows/publish.yml/badge.svg)
+[![Test](https://github.com/trungd/PaperShelf/actions/workflows/test.yml/badge.svg)](https://github.com/trungd/PaperShelf/actions/workflows/test.yml)
+[![Publish](https://github.com/trungd/PaperShelf/actions/workflows/publish.yml/badge.svg)](https://github.com/trungd/PaperShelf/actions/workflows/publish.yml)
 
 ## Why PaperShelf?
 

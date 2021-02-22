@@ -39,6 +39,8 @@ class Paper {
 
   authorShort?: string;
 
+  removed = false;
+
   constructor(p: Record<string, unknown> | null = null) {
     if (p) {
       Object.assign(this, p);
@@ -163,6 +165,7 @@ class Paper {
 
   remove() {
     if (this.id) {
+      this.remove = true;
       dataStore.delete(`papers.${this.id}`);
     }
   }

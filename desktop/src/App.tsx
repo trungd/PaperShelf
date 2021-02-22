@@ -70,8 +70,8 @@ const Main = () => {
   const removePaper = (p: Paper) => {
     p.remove();
     setShowPaperInfo(false);
-    setSelectedPaper(undefined);
-    loadPapers();
+    setSelectedPaper(null);
+    loadPapers(); // TODO: avoid reloading all papers
   };
 
   return (

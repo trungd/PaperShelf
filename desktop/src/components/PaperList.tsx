@@ -48,6 +48,7 @@ const PaperList = ({
   onRemovePaper,
 }: PaperListProps) => {
   const [selectedIndex, setSelectedIndex] = useState<number>();
+  const [selectedPaper, setSelectedPaper] = useState<Paper>();
   const [collection, setCollection] = useState<Collection>();
   const [allCollections, setAllCollections] = useState<Collection[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -61,7 +62,7 @@ const PaperList = ({
 
     const getInCollectionItems = () => {
       const inCollectionPapers = paperList.filter((p) =>
-        collection ? p.id && collection.papers.includes(p?.id) : true
+        p.inCollection(collection)
       );
 
       return [
@@ -88,7 +89,7 @@ const PaperList = ({
       if (!collection || !searchMode) return [];
 
       const outCollectionPapers = paperList.filter(
-        (p) => p.id && !collection.papers.includes(p?.id)
+        (p) => !p.inCollection(collection)
       );
       return [
         {
@@ -105,7 +106,20 @@ const PaperList = ({
     };
 
     const getWebSearchItems = () => {
-      return [];
+      if (!searchMode) return [];
+      const webSearchPapers = paperList.filter((p) => !p.inLibrary);
+      return [
+        {
+          header: (
+            <Divider content={`Search Results (${webSearchPapers.length})`} />
+          ),
+          styles: {
+            minHeight: 0,
+          },
+          selectable: false,
+        },
+        ...webSearchPapers.map((p) => mapFn(p, searchMode)),
+      ];
     };
 
     setItems([
@@ -143,7 +157,10 @@ const PaperList = ({
                 icon: <DownloadIcon />,
                 iconOnly: true,
                 text: true,
-                onClick: () => p.download(),
+                onClick: () => {
+                  p.download();
+                  setPaperList(papers, searchMode);
+                },
               },
             ]),
             ...cond(!p.inLibrary || !p.inCollection(collection), [
@@ -159,7 +176,6 @@ const PaperList = ({
                   if (collection && !p.inCollection(collection)) {
                     p.addToCollection(collection);
                   }
-                  setPaperList(papers, searchMode);
                 },
               },
             ]),
@@ -177,13 +193,21 @@ const PaperList = ({
     );
   };
 
+  const getContentMedia = (p: Paper) => {
+    if (p.inLibrary) {
+      if (p.removed) return <Text content="Removed" color="red" />;
+      return null;
+    }
+    return <Text content="arvix" color="red" />;
+  };
+
   const mapFn = (p: Paper, searchMode: boolean) =>
     ({
       paper: p,
       header: getHeader(p),
       content: getContent(p),
       endMedia: getEndMedia(p, searchMode),
-      contentMedia: p.inLibrary ? null : <Text content="arvix" color="red" />,
+      contentMedia: getContentMedia(p),
       headerMedia: p.inLibrary ? null : <AiOutlineGlobal />,
       onContextMenu: () => {
         ipcRenderer.send('context', { itemType: 'paper', itemId: p.id });
@@ -200,7 +224,6 @@ const PaperList = ({
   } */
 
   const refreshList = (currentQuery: string, search = false) => {
-    console.log(currentQuery);
     // const papersInCollection = collection
     //   ? allPapers.filter((p) => collection.papers.includes(p.id!))
     //   : allPapers;
@@ -294,8 +317,15 @@ const PaperList = ({
           selectedIndex={selectedIndex}
           onSelectedIndexChange={(_, p) => {
             setSelectedIndex(p?.selectedIndex);
-            if (p?.selectedIndex !== undefined)
-              onChange(items[p?.selectedIndex].paper);
+            const paper =
+              p?.selectedIndex !== undefined
+                ? items[p?.selectedIndex].paper
+                : undefined;
+            setSelectedPaper(paper);
+            if (p?.selectedIndex !== undefined) {
+              onChange(paper);
+              console.log(paper);
+            }
           }}
         />
       </Box>
@@ -310,36 +340,27 @@ const PaperList = ({
               menu: allCollections.map((c) => ({
                 key: c.key,
                 content: c.name,
-                icon:
-                  papers[selectedIndex!]?.id &&
-                  papers[selectedIndex!].inCollection(c) ? (
-                    <AcceptIcon />
-                  ) : (
-                    <AddIcon />
-                  ),
+                icon: selectedPaper?.inCollection(c) ? (
+                  <AcceptIcon />
+                ) : (
+                  <AddIcon />
+                ),
                 onClick: () => {
-                  if (
-                    selectedIndex &&
-                    papers[selectedIndex] &&
-                    papers[selectedIndex].id
-                  ) {
-                    c.toggle(papers[selectedIndex].id!);
+                  if (selectedPaper) {
+                    c.toggle(selectedPaper.id!);
                   }
                 },
               })),
               menuOpen: menuOpenBookmark,
               onMenuOpenChange: (_, p) => setMenuOpenBookmark(p?.menuOpen),
               disabled:
-                selectedIndex === undefined || !papers[selectedIndex].inLibrary,
+                selectedIndex === undefined || !selectedPaper?.inLibrary,
             },
             {
               icon: <DownloadIcon />,
               title: 'Download',
-              disabled:
-                selectedIndex === undefined ||
-                !papers[selectedIndex].inLibrary ||
-                papers[selectedIndex].getLocalPath(),
-              onClick: () => papers[selectedIndex!]?.download(),
+              disabled: !selectedPaper?.inLibrary || selectedPaper?.localPath,
+              onClick: () => selectedPaper?.download(),
             },
             {
               kind: 'divider',
@@ -347,9 +368,8 @@ const PaperList = ({
             {
               icon: <TrashCanIcon />,
               title: 'Remove from Library',
-              disabled:
-                selectedIndex === undefined || !papers[selectedIndex].inLibrary,
-              onClick: () => onRemovePaper(papers[selectedIndex]),
+              disabled: !selectedPaper || !selectedPaper?.inLibrary,
+              onClick: () => onRemovePaper(selectedPaper!),
             },
           ] as ToolbarItemProps[]
         }

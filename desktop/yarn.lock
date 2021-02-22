@@ -1337,7 +1337,7 @@
     "@babel/runtime" "^7.10.4"
     "@fluentui/styles" "^0.52.0"
 
-"@fluentui/react-northstar@0.52.0":
+"@fluentui/react-northstar@^0.52.0":
   version "0.52.0"
   resolved "https://registry.yarnpkg.com/@fluentui/react-northstar/-/react-northstar-0.52.0.tgz#b42ba9258a05a007dc02fc8e24770bd13371f76b"
   integrity sha512-AthHZyA7SKuQEGK1D8C57b3Jp6tHN7sT+ssczRGWHLwbMYsu+Qt6KSkTwpk/ZgQswHM9kz/C38105pz+ecBKaA==
@@ -1639,9 +1639,9 @@
   integrity sha512-3NsZsJIA/22P3QUyrEDNA2D133H4j224twJrdipXN38dpnIOzAbUDtOwkcJ5pXmn75w7LSQDjA4tO9dm1XlqlA==
 
 "@popperjs/core@^2.4.2":
-  version "2.7.2"
-  resolved "https://registry.yarnpkg.com/@popperjs/core/-/core-2.7.2.tgz#00644825ce478065101954bdb2f7f2d062365b7f"
-  integrity sha512-3LC1/M2ZFcmDrSkD1byT/hZzoPehZkDucbDShLnZ+/Gwkr6CAxiQ2kWy1UtJeLGADe58hTWkx22YEHqjPGUKzw==
+  version "2.8.3"
+  resolved "https://registry.yarnpkg.com/@popperjs/core/-/core-2.8.3.tgz#8b4eae3d9dd470c022cb9238128db8b1906e7fca"
+  integrity sha512-olsVs3lo8qKycPoWAUv4bMyoTGVXsEpLR9XxGk3LJR5Qa92a1Eg/Fj1ATdhwtC/6VMaKtsz1nSAeheD2B2Ru9A==
 
 "@quid/stylis-plugin-focus-visible@^4.0.0":
   version "4.0.0"

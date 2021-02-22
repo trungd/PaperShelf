@@ -242,7 +242,7 @@
     "yarn-deduplicate": "^3.1.0"
   },
   "dependencies": {
-    "@fluentui/react-northstar": "0.52.0",
+    "@fluentui/react-northstar": "^0.52.0",
     "electron-context-menu": "^2.4.0",
     "electron-debug": "^3.1.0",
     "electron-dl": "^3.0.3",

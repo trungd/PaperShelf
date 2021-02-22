@@ -1,9 +1,6 @@
 name: Publish
 
-on:
-  push:
-    branches:
-      - main
+on: [push]
 
 jobs:
   publish:
@@ -12,6 +9,10 @@ jobs:
     strategy:
       matrix:
         os: [macos-latest]
+
+    defaults:
+      run:
+        working-directory: desktop
 
     steps:
       - name: Checkout git repo

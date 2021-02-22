@@ -281,6 +281,45 @@ const PaperList = ({
 
   useEffect(() => refreshList(searchQuery), [collection, allPapers]);
 
+  const toolbarItems = [
+    {
+      key: 'collection',
+      icon: <BookmarkIcon />,
+      title: 'Add to Collection',
+      menu: allCollections.map((c) => ({
+        key: c.key,
+        content: c.name,
+        icon: selectedPaper?.inCollection(c) ? <AcceptIcon /> : <AddIcon />,
+        onClick: () => {
+          if (selectedPaper) {
+            c.toggle(selectedPaper.id!);
+          }
+        },
+      })),
+      menuOpen: menuOpenBookmark,
+      onMenuOpenChange: (_, p) => setMenuOpenBookmark(p?.menuOpen),
+      disabled: selectedIndex === undefined || !selectedPaper?.inLibrary,
+    },
+    {
+      key: 'download',
+      icon: <DownloadIcon />,
+      title: 'Download',
+      disabled: !selectedPaper?.inLibrary || selectedPaper?.localPath,
+      onClick: () => selectedPaper?.download(),
+    },
+    {
+      key: 'divider-1',
+      kind: 'divider',
+    },
+    {
+      key: 'remove',
+      icon: <TrashCanIcon />,
+      title: 'Remove from Library',
+      disabled: !selectedPaper || !selectedPaper?.inLibrary,
+      onClick: () => onRemovePaper(selectedPaper!),
+    },
+  ] as ToolbarItemProps[];
+
   return (
     <Flex fill column>
       <CollectionToolbar
@@ -330,50 +369,7 @@ const PaperList = ({
         />
       </Box>
 
-      <Toolbar
-        items={
-          [
-            {
-              key: 'collection',
-              icon: <BookmarkIcon />,
-              title: 'Add to Collection',
-              menu: allCollections.map((c) => ({
-                key: c.key,
-                content: c.name,
-                icon: selectedPaper?.inCollection(c) ? (
-                  <AcceptIcon />
-                ) : (
-                  <AddIcon />
-                ),
-                onClick: () => {
-                  if (selectedPaper) {
-                    c.toggle(selectedPaper.id!);
-                  }
-                },
-              })),
-              menuOpen: menuOpenBookmark,
-              onMenuOpenChange: (_, p) => setMenuOpenBookmark(p?.menuOpen),
-              disabled:
-                selectedIndex === undefined || !selectedPaper?.inLibrary,
-            },
-            {
-              icon: <DownloadIcon />,
-              title: 'Download',
-              disabled: !selectedPaper?.inLibrary || selectedPaper?.localPath,
-              onClick: () => selectedPaper?.download(),
-            },
-            {
-              kind: 'divider',
-            },
-            {
-              icon: <TrashCanIcon />,
-              title: 'Remove from Library',
-              disabled: !selectedPaper || !selectedPaper?.inLibrary,
-              onClick: () => onRemovePaper(selectedPaper!),
-            },
-          ] as ToolbarItemProps[]
-        }
-      />
+      <Toolbar items={toolbarItems} />
     </Flex>
   );
 };

@@ -11,6 +11,7 @@ import {
   Text,
   MenuIcon,
   ToolbarMenuItemProps,
+  ToolbarItemProps,
 } from '@fluentui/react-northstar';
 import React, { useEffect, useState } from 'react';
 import { BiHide } from 'react-icons/bi';
@@ -142,7 +143,6 @@ const CollectionToolbar = ({
       onClick: () => {
         collection?.delete();
         changeCollection(undefined);
-        loadCollections();
       },
     },
   ];
@@ -179,31 +179,28 @@ const CollectionToolbar = ({
     },
   ] as ToolbarMenuItemProps[];
 
-  return (
-    <Toolbar
-      aria-label="Default"
-      items={[
-        {
-          // kind: 'custom',
-          icon: <MenuIcon />,
-          menu: collectionsMenu,
-          menuOpen: menuOpenCollections,
-          onMenuOpenChange: (_, p) => setMenuOpenCollections(p?.menuOpen),
-        },
-        {
-          kind: 'custom',
-          content: (
-            <Text
-              content={collection?.name || 'All'}
-              styles={{ color: 'brand', width: '100%' }}
-              truncated
-            />
-          ),
-          onClick: (_, p) => setMenuOpenCollections(p?.menuOpen),
-        },
-      ]}
-    />
-  );
+  const toolbarItems = [
+    {
+      key: 'collections',
+      icon: <MenuIcon />,
+      menu: collectionsMenu,
+      menuOpen: menuOpenCollections,
+      onMenuOpenChange: (_, p) => setMenuOpenCollections(p?.menuOpen),
+    },
+    {
+      key: 'custom',
+      kind: 'custom',
+      content: (
+        <Text
+          content={collection?.name || 'All'}
+          styles={{ color: 'brand', width: '100%' }}
+          truncated
+        />
+      ),
+    },
+  ] as ToolbarItemProps[];
+
+  return <Toolbar aria-label="Default" items={toolbarItems} />;
 };
 
 export default CollectionToolbar;

@@ -106,6 +106,7 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
 
   const allToolBarItems = {
     divider: {
+      key: 'divider',
       kind: 'divider',
     },
     zoomIn: {

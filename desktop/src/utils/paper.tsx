@@ -1,9 +1,21 @@
-import { shell, ipcRenderer } from 'electron';
+import { shell, ipcRenderer, app } from 'electron';
 import fs from 'fs';
 import { pick } from 'lodash';
-import { ArxivPaper, searchArxiv } from './arxiv';
+import {
+  Arxiv,
+  ArxivPaper,
+  SemanticScholar,
+  SemanticScholarPaper,
+} from './sources';
 import Collection from './collection';
 import { store, dataStore } from './store';
+import { GoogleScholar, GoogleScholarPaper } from './sources/googleScholar';
+import { Source, SourcePaper } from './sources/base';
+
+type SimplePaper = {
+  title: string;
+  authors: string[];
+};
 
 class Paper {
   id?: string;
@@ -15,12 +27,6 @@ class Paper {
   localPath?: string;
 
   inLibrary = false;
-
-  arxiv?: {
-    url: string;
-    updated: string;
-    published: string;
-  };
 
   abstract?: string;
 
@@ -37,9 +43,28 @@ class Paper {
 
   venue?: string;
 
+  venueAndYear?: string;
+
   authorShort?: string;
 
   removed = false;
+
+  numCitations = 0;
+
+  citations: string[] = [];
+
+  references: SimplePaper[] = [];
+
+  starred = false;
+
+  autoFill = true;
+
+  thumbnail?: string;
+
+  sources: {
+    source: string;
+    paper: SourcePaper;
+  }[] = [];
 
   constructor(p: Record<string, unknown> | null = null) {
     if (p) {
@@ -50,16 +75,6 @@ class Paper {
 
   serialize() {
     this.refresh();
-    if (!this.id) {
-      if (this.authors.length > 0 && this.year && this.title) {
-        this.id =
-          this.authors[0].split(' ').slice(-1)[0].toLowerCase() +
-          this.year +
-          this.title.split(' ')[0].toLowerCase();
-      } else {
-        this.id = Math.random().toString(36).slice(2);
-      }
-    }
 
     dataStore.set(
       `papers.${this.id}`,
@@ -72,8 +87,10 @@ class Paper {
         'abstract',
         'authors',
         'tags',
-        'arxiv',
         'zoomPercentage',
+        'numCitations',
+        'starred',
+        'thumbnail',
       ])
     );
     this.refresh();
@@ -86,6 +103,7 @@ class Paper {
     };
     this.year = getField('year');
     this.venue = getField('venue');
+    this.venueAndYear = [this.venue, this.year].join(' ');
 
     // Populate authorShort
     if (this.authors.length > 2) {
@@ -93,25 +111,21 @@ class Paper {
     } else {
       this.authorShort = this.authors.join(', ');
     }
+
+    if (!this.id) {
+      if (this.authors.length > 0 && this.year && this.title) {
+        this.id =
+          this.authors[0].split(' ').slice(-1)[0].toLowerCase() +
+          this.year +
+          this.title.replace(/\W/g, ' ').split(' ')[0].toLowerCase();
+      } else {
+        this.id = Math.random().toString(36).slice(2);
+      }
+    }
   }
 
   static delete(id?: string) {
     dataStore.delete(`papers.${id}`);
-  }
-
-  fromArxivPaper(arxivPaper: ArxivPaper) {
-    this.pdfUrl = this.pdfUrl || arxivPaper.pdfUrl;
-    this.title = this.title || arxivPaper.title;
-    this.abstract = this.abstract || arxivPaper.abstract;
-    if (this.authors.length === 0) this.authors = arxivPaper.authors;
-    this.appendTags([
-      ...arxivPaper.categories,
-      ...(arxivPaper.updated
-        ? [`year:${arxivPaper.updated.getFullYear()}`]
-        : []),
-    ]);
-    this.refresh();
-    return this;
   }
 
   appendTags(tags: string[]) {
@@ -120,7 +134,7 @@ class Paper {
 
   getTagsByType(tagType: string) {
     const tags = this.tags.filter(
-      (t) => /^[a-z0-9]+:[a-z0-9-]+$/.test(t) && t.split(':')[0] === tagType
+      (t) => /^[a-z0-9]+:.+$/.test(t) && t.split(':')[0] === tagType
     );
     if (tags.length === 0) return null;
     return tags.map((t) => t.split(':').slice(-1)[0]);
@@ -146,6 +160,11 @@ class Paper {
     // };
   }
 
+  toggleStar() {
+    this.starred = !this.starred;
+    this.serialize();
+  }
+
   addToLibrary() {
     this.inLibrary = true;
     if (store.get('autoDownload')) this.download();
@@ -165,7 +184,7 @@ class Paper {
 
   remove() {
     if (this.id) {
-      this.remove = true;
+      this.removed = true;
       dataStore.delete(`papers.${this.id}`);
     }
   }
@@ -186,6 +205,71 @@ class Paper {
     if (loc) {
       shell.openPath(loc);
     }
+  }
+
+  populateFieldsFromSources() {
+    this.sources.forEach(
+      ({ source, paper }: { source: string; paper: SourcePaper }) => {
+        switch (source) {
+          case Arxiv.source: {
+            const arxivPaper = paper as ArxivPaper;
+
+            this.pdfUrl = this.pdfUrl || arxivPaper.pdfUrl;
+            this.title = this.title || arxivPaper.title;
+            this.abstract = this.abstract || arxivPaper.abstract;
+            if (this.authors.length === 0) this.authors = arxivPaper.authors;
+            this.appendTags([
+              ...arxivPaper.categories,
+              ...(arxivPaper.updated
+                ? [`year:${arxivPaper.updated.getFullYear()}`]
+                : []),
+            ]);
+            break;
+          }
+          case SemanticScholar.source: {
+            const semanticPaper = paper as SemanticScholarPaper;
+            this.title = this.title || semanticPaper.title;
+            this.abstract = this.abstract || semanticPaper.abstract;
+            if (this.authors.length === 0)
+              this.authors = semanticPaper.authors.map((a) => a.name);
+            this.numCitations = this.numCitations || semanticPaper.numCitations;
+            this.citations = semanticPaper.citations.map((p) => p.title);
+            this.references = semanticPaper.references.map(
+              (p) =>
+                ({
+                  title: p.title,
+                  authors: p.authors.map((a) => a.name),
+                } as SimplePaper)
+            );
+
+            if (semanticPaper.venue)
+              this.appendTags([`venue:${semanticPaper.venue}`]);
+            if (semanticPaper.year)
+              this.appendTags([`year:${semanticPaper.year}`]);
+            break;
+          }
+          case GoogleScholar.source: {
+            const googlePaper = paper as GoogleScholarPaper;
+            this.title = this.title || googlePaper.title;
+            this.abstract = this.abstract || googlePaper.abstract;
+            if (this.authors.length === 0)
+              this.authors = googlePaper.authors.map((a) => a.name);
+            this.numCitations = this.numCitations || googlePaper.numCitations;
+
+            if (googlePaper.venue)
+              this.appendTags([`venue:${googlePaper.venue}`]);
+            if (googlePaper.year) this.appendTags([`year:${googlePaper.year}`]);
+            break;
+          }
+          default: {
+            throw 'Source not found.';
+          }
+        }
+      }
+    );
+
+    this.refresh();
+    return this;
   }
 }
 
@@ -219,11 +303,6 @@ export function getLocalPapers() {
   */
 }
 
-export function comparePaperTitle(t1: string, t2: string) {
-  const normalize = (t: string) => t.toLowerCase().replace(/\W/g, '');
-  return normalize(t1) === normalize(t2);
-}
-
 export function getAllTags() {
   // TODO: cache/store tag list if slow
   const papers = getLocalPapers();
@@ -245,17 +324,49 @@ export function getPaper(id: string) {
 }
 
 export async function fetchPaper(p: Paper) {
-  if (p.title) {
-    const res = await searchArxiv(p.title, 0, 1);
-
-    if (res.length === 1) {
-      const arxivPaper = res[0];
-      if (comparePaperTitle(p.title, arxivPaper.title)) {
-        p.fromArxivPaper(arxivPaper);
-      }
+  const sources = store.get('fetchPaperSources') as string[];
+  const promises = sources.map((source) => {
+    switch (source) {
+      case Arxiv.source:
+        return Arxiv.fetch(p.pdfUrl, p.title).then((paper) => {
+          p.sources.push({ source, paper });
+          return true;
+        });
+      case SemanticScholar.source:
+        return SemanticScholar.fetch(p.pdfUrl, p.title).then((paper) => {
+          if (paper) p.sources.push({ source, paper });
+          return true;
+        });
+      default:
+        return new Promise(() => {});
     }
-  }
-  return p;
+  });
+
+  return Promise.all(promises).then(() => {
+    return p.populateFieldsFromSources();
+  });
+}
+
+export async function searchPaper(
+  query: string,
+  callback: (p: Paper[]) => void
+) {
+  const sources = store.get('searchPaperSources') as string[];
+  return Promise.all(
+    ([Arxiv, GoogleScholar] as Source[]).map((s) =>
+      sources.includes(s.source)
+        ? s.search(query, 0, 10).then((res) =>
+            callback(
+              res.map((paper: SourcePaper) =>
+                new Paper({
+                  sources: [{ source: s.source, paper }],
+                }).populateFieldsFromSources()
+              )
+            )
+          )
+        : null
+    )
+  ).catch((err) => console.log(err));
 }
 
 export default Paper;

@@ -16,6 +16,8 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import Store from 'electron-store';
 import electronDl, { download } from 'electron-dl';
+import fs from 'fs';
+import { IpcMainEvent, IpcMainInvokeEvent } from 'electron/main';
 import MenuBuilder from './menu';
 import initContextMenu from './contextMenu';
 import Paper from '../utils/paper';
@@ -135,7 +137,7 @@ app.on('window-all-closed', () => {
 app
   .whenReady()
   .then(createWindow)
-  .then(() => initContextMenu(mainWindow))
+  .then(() => initContextMenu(mainWindow!))
   .catch(console.log);
 
 ipcMain.on('modal-edit-paper', (_, p?: Paper) => {
@@ -165,12 +167,33 @@ ipcMain.on('modal-edit-paper', (_, p?: Paper) => {
 });
 
 ipcMain.on('download', (_, { url, directory, filename }) => {
-  download(mainWindow, url, {
+  download(mainWindow!, url, {
     filename,
     directory,
     showBadge: false,
   }).catch(() => {});
 });
+
+ipcMain.handle(
+  'save-thumbnail',
+  async (
+    event: IpcMainInvokeEvent,
+    { paper, data }: { paper: Paper; data: string }
+  ) => {
+    fs.mkdir(
+      `${app.getPath('userData')}/thumbnails`,
+      { recursive: true },
+      (err) => {
+        if (err) throw err;
+      }
+    );
+    const path = `${app.getPath('userData')}/thumbnails/${paper.id}.png`;
+    fs.writeFile(path, data, 'base64', function (err) {
+      if (err) console.log(err);
+    });
+    return path;
+  }
+);
 
 app.on('activate', () => {
   // On macOS it's common to re-create a window in the app when the

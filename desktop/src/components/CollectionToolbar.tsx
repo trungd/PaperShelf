@@ -12,6 +12,7 @@ import {
   MenuIcon,
   ToolbarMenuItemProps,
   ToolbarItemProps,
+  StarIcon,
 } from '@fluentui/react-northstar';
 import React, { useEffect, useState } from 'react';
 import { BiHide } from 'react-icons/bi';
@@ -113,7 +114,7 @@ const CollectionToolbar = ({
               ({
                 key: `open-${c.name}`,
                 content: c.name,
-                icon: <AddIcon />,
+                icon: c.getIcon(),
                 onClick: () => {
                   c.show = true;
                   c.serialize();
@@ -157,6 +158,7 @@ const CollectionToolbar = ({
       size: 'small',
       onClick: () => changeCollection(undefined),
     },
+    { key: 'divider-1', kind: 'divider' },
     ...allCollections
       .filter((c) => c.show)
       .map(
@@ -166,11 +168,12 @@ const CollectionToolbar = ({
             text: true,
             content: c.name,
             size: 'small',
+            icon: c.getIcon(),
             primary: collection?.key === c.key,
             onClick: () => changeCollection(c),
           } as ButtonProps)
       ),
-    { key: 'divider-1', kind: 'divider' },
+    { key: 'divider-2', kind: 'divider' },
     {
       key: 'more',
       text: true,

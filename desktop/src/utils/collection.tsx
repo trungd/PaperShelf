@@ -1,5 +1,21 @@
+import {
+  AcceptIcon,
+  AddIcon,
+  PresenceAvailableIcon,
+  PresenceStrokeIcon,
+  StarIcon,
+} from '@fluentui/react-northstar';
 import { pick } from 'lodash';
+import React from 'react';
 import { dataStore } from './store';
+
+const icons = {
+  default: <AddIcon />,
+  star: <StarIcon />,
+  check: <AcceptIcon />,
+  read: <PresenceAvailableIcon />,
+  unread: <PresenceStrokeIcon />,
+} as Record<string, JSX.Element>;
 
 class Collection {
   key = 'new-id';
@@ -9,6 +25,8 @@ class Collection {
   papers: string[] = [];
 
   show = true;
+
+  icon?: string;
 
   constructor(c: Record<string, unknown>) {
     Object.assign(this, c);
@@ -31,6 +49,10 @@ class Collection {
   addPaper(id: string) {
     this.papers = [...new Set([...this.papers, id])];
     this.serialize();
+  }
+
+  getIcon() {
+    return icons[this.icon || 'default'];
   }
 
   serialize() {

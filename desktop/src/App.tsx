@@ -9,15 +9,22 @@ import './App.global.css';
 import PaperInfo from './components/PaperInfo';
 import Paper, { getLocalPapers } from './utils/paper';
 import { store } from './utils/store';
-import Collection, { getCollections } from './utils/collection';
 import About from './views/about';
 
+enum View {
+  Regular,
+  SideBarOnly,
+  PdfViewerOnly,
+  DistractionFree,
+}
+
 const Main = () => {
-  const [sideBarWidth, setSideBarWidth] = useState<number>(300);
-  const [showPaperInfo, setShowPaperInfo] = useState<boolean>(false);
-  const [showSideBar, setShowSideBar] = useState<boolean>(true);
-  const [pdfWidth, setPdfWidth] = useState<number>(0);
   const [height, setHeight] = useState<number>(0);
+  const [sideBarWidth, setSideBarWidth] = useState<number>(300);
+  const [pdfWidth, setPdfWidth] = useState<number>(0);
+
+  const [showPaperInfo, setShowPaperInfo] = useState<boolean>(false);
+  const [view, setView] = useState<View>(View.Regular);
 
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
   const [allPapers, setAllPapers] = useState<Paper[]>([]);
@@ -40,6 +47,19 @@ const Main = () => {
     */
   });
 
+  const changeView = (v: View) => {
+    setView(v);
+    switch (v) {
+      case View.Regular:
+        break;
+      case View.PdfViewerOnly:
+        setPdfWidth('100vw');
+        break;
+      case View.SideBarOnly:
+        setSideBarWidth('100vw');
+    }
+  };
+
   useEffect(() => {
     const setSize = () => {
       setHeight(window.innerHeight);
@@ -51,7 +71,7 @@ const Main = () => {
     setSize();
     window.addEventListener('resize', throttle(setSize, 500));
 
-    setShowSideBar(store.get('view.showSideBar'));
+    setView(store.get('view.showSideBar') ? View.Regular : View.PdfViewerOnly);
     setSideBarWidth(
       store.get('view.showSideBar') ? store.get('view.sideBarWidth') : 0
     );
@@ -78,33 +98,43 @@ const Main = () => {
     <Flex column styles={{ height: '100vh', width: '100vw' }}>
       <Flex.Item grow>
         <Flex>
-          {showSideBar && (
-            <Box style={{ width: `${sideBarWidth}px`, height: `${height}px` }}>
+          {(view === View.Regular || view === View.SideBarOnly) && (
+            <Box
+              style={{
+                width: view === View.Regular ? `${sideBarWidth}px` : '100vw',
+                height: `${height}px`,
+              }}
+            >
               <PaperList
+                expanded={view === View.SideBarOnly}
                 allPapers={allPapers}
-                width={sideBarWidth}
-                onChange={(paper) => setSelectedPaper(paper)}
+                onChange={(p) => setSelectedPaper(p)}
                 onShowInfo={() => setShowPaperInfo(true)}
                 onRemovePaper={(p) => removePaper(p)}
+                onExpand={(val: boolean) =>
+                  setView(val ? View.SideBarOnly : View.Regular)
+                }
               />
             </Box>
           )}
-          <Box
-            style={{
-              width: `calc(100vw - ${sideBarWidth}px`,
-              height: `${height}px`,
-            }}
-          >
-            {showPaperInfo ? (
-              <PaperInfo
-                paper={selectedPaper}
-                onClose={() => setShowPaperInfo(false)}
-                onRemovePaper={(p) => removePaper(p)}
-              />
-            ) : (
-              <PdfViewer paper={selectedPaper} width={pdfWidth} />
-            )}
-          </Box>
+          {(view === View.Regular || view === View.PdfViewerOnly) && (
+            <Box
+              style={{
+                width: `calc(100vw - ${sideBarWidth}px`,
+                height: `${height}px`,
+              }}
+            >
+              {showPaperInfo ? (
+                <PaperInfo
+                  paper={selectedPaper}
+                  onClose={() => setShowPaperInfo(false)}
+                  onRemovePaper={(p) => removePaper(p)}
+                />
+              ) : (
+                <PdfViewer paper={selectedPaper} width={pdfWidth} />
+              )}
+            </Box>
+          )}
         </Flex>
       </Flex.Item>
     </Flex>

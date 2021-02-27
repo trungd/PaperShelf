@@ -80,8 +80,7 @@
       "artifactName": "${productName}-${os}.${ext}",
       "target": [
         "AppImage",
-        "deb",
-        "snap"
+        "deb"
       ],
       "category": "Development"
     },
@@ -246,6 +245,7 @@
     "webpack-cli": "^4.2.0",
     "webpack-dev-server": "^3.11.0",
     "webpack-merge": "^5.4.0",
+    "worker-loader": "^3.0.8",
     "yarn-deduplicate": "^3.1.0"
   },
   "dependencies": {
@@ -261,12 +261,15 @@
     "history": "^5.0.0",
     "js-yaml": "^4.0.0",
     "lodash": "^4.17.20",
+    "python-shell": "^2.0.3",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
     "react-icons": "^4.2.0",
     "react-pdf": "^5.1.0",
+    "react-pdf-highlighter": "^3.4.0",
     "react-router-dom": "^5.2.0",
     "react-select": "^4.1.0",
+    "react-textarea-autosize": "^8.3.1",
     "regenerator-runtime": "^0.13.5",
     "source-map-support": "^0.5.19"
   },

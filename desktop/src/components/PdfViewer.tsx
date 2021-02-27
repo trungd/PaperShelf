@@ -1,31 +1,57 @@
-import React, { ElementRef, useEffect, useRef, useState } from 'react';
+import React, {
+  ElementRef,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+} from 'react';
 
-import { Document, Page, pdfjs } from 'react-pdf';
-import {
-  Box,
-  Flex,
-  OpenOutsideIcon,
-  ShareGenericIcon,
-  Toolbar,
-  ToolbarItemProps,
-  ZoomInIcon,
-  ZoomOutIcon,
-} from '@fluentui/react-northstar';
+import { Document, Page } from 'react-pdf/dist/esm/entry.webpack';
+
+import { Box, Flex } from '@fluentui/react-northstar';
+import fs from 'fs';
+import { app, ipcRenderer } from 'electron';
+
+import PdfViewerToolbar from './PdfViewerToolbar';
 import Paper from '../utils/paper';
-import { store } from '../utils/store';
-// right after your imports
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 type PdfViewerProps = {
   width: number;
   paper: Paper | null;
 };
 
+const stringToHighlight = 'deep';
+
+// You might want to merge the items a little smarter than that
+
+function highlightPattern(text: string) {
+  const splitText = text.split(' ');
+
+  if (splitText.length <= 1) {
+    return text;
+  }
+
+  return text;
+  // return splitText
+  //   .map((t) => [
+  //     <span className="word">{t}</span>,
+  //     <span
+  //       style={{
+  //         // backgroundColor: 'rgba(100, 100, 100, 0.2)',
+  //         height: '1em',
+  //       }}
+  //     >
+  //       {' '}
+  //     </span>,
+  //   ])
+  //   .flat()
+  //   .slice(0, -1);
+}
+
 function PdfViewer({ width, paper = null }: PdfViewerProps) {
   const padLeft = 8;
   const padRight = 0;
   const padTop = 8;
-  const [toolBarItems, setToolBarItems] = useState<string[]>([]);
 
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
@@ -53,11 +79,11 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
     zoom(paper?.zoomPercentage || 1);
   };
 
-  // const onItemClick = ({ pageNumber }: { pageNumber: string }) => {
-  //   setCurrentPage(parseInt(pageNumber));
-  // };
+  const onItemClick = ({ pageNumber }: { pageNumber: string }) => {
+    // console.log(p);
+  };
 
-  const onRenderSuccess = (i: number) => {
+  const onRenderSuccess = async (i: number) => {
     if (!paper) return;
     zoom(paper?.zoomPercentage);
     const pageDom = pageRef[i]?.querySelector(
@@ -77,17 +103,51 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
         top: n.style.top,
         left: n.style.left,
       }));
-     */
+    */
+
+    if (!paper.thumbnail) {
+      const canvasDom = pageRef[0]?.querySelector(
+        'div canvas'
+      ) as HTMLCanvasElement;
+      if (canvasDom) {
+        const url = canvasDom.toDataURL('image/jpg', 0.8);
+        const base64Data = url.replace(/^data:image\/png;base64,/, '');
+        const path = await ipcRenderer.invoke('save-thumbnail', {
+          paper,
+          data: base64Data,
+        });
+        paper.thumbnail = path;
+        paper.serialize();
+      }
+    }
   };
 
-  useEffect(() => {
-    setToolBarItems(store.get('pdfViewerToolbar'));
+  const onPageLoadSuccess = useCallback(async (page) => {
+    const textContent = await page.getTextContent();
+    setTextItems(textContent.items);
   }, []);
 
-  const onScroll = (e) => {
+  const [textItems, setTextItems] = useState();
+
+  const customTextRenderer = useCallback(
+    (textItem) => {
+      if (!textItems) return undefined;
+
+      const matchInTextItem = textItem.str.match(stringToHighlight);
+
+      return highlightPattern(textItem.str);
+      if (matchInTextItem) {
+        return highlightPattern(textItem.str);
+      }
+      return textItem.str;
+    },
+    [stringToHighlight, textItems]
+  );
+
+  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (pageHeight) {
       const page = Math.floor(
-        e.target.scrollTop /
+        e.currentTarget.scrollTop /
           (parseInt(pageHeight.slice(0, -2), 10) + 2 * padTop)
       );
       setCurrentPage(page);
@@ -104,49 +164,12 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
     setViewWidth(width - 16);
   }, [width]);
 
-  const allToolBarItems = {
-    divider: {
-      key: 'divider',
-      kind: 'divider',
-    },
-    zoomIn: {
-      icon: <ZoomInIcon />,
-      key: 'zoom-in',
-      title: 'Zoom In',
-      onClick: () => {
-        zoom(zoomPercentage + 10);
-      },
-      disabled: !paper,
-    },
-    zoomOut: {
-      icon: <ZoomOutIcon />,
-      key: 'zoom-out',
-      title: 'Zoom Out',
-      onClick: () => {
-        zoom(zoomPercentage - 10);
-      },
-      disabled: !paper,
-    },
-    open: {
-      icon: <OpenOutsideIcon />,
-      key: 'open-default',
-      title: 'Open in Default App',
-      onClick: () => paper?.openPdf(),
-      disabled: !paper,
-    },
-    share: {
-      icon: <ShareGenericIcon />,
-      key: 'share',
-      title: 'Share',
-      disabled: !paper,
-    },
-  } as Record<string, ToolbarItemProps>;
-
   return (
     <Flex column styles={{ width: '100%', height: '100%' }}>
-      <Toolbar
-        aria-label="Default"
-        items={toolBarItems.map((name) => allToolBarItems[name])}
+      <PdfViewerToolbar
+        zoomPercentage={zoomPercentage}
+        zoom={zoom}
+        paper={paper}
       />
       <div
         style={{
@@ -165,7 +188,8 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
           <Document
             file={paper.getLocalPath() || paper?.pdfUrl}
             onLoadSuccess={onDocumentLoadSuccess}
-            // onItemClick={onItemClick}
+            onItemClick={onItemClick}
+            loading={<></>}
             noData={<></>}
           >
             <Flex column gap="gap.small">
@@ -190,6 +214,7 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
                     }}
                   >
                     <div
+                      className="pdf-page"
                       ref={(el) => {
                         pageRef[i] = el;
                       }}
@@ -203,6 +228,8 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
                             : undefined
                         }
                         onRenderSuccess={() => onRenderSuccess(i)}
+                        customTextRenderer={customTextRenderer}
+                        onLoadSuccess={onPageLoadSuccess}
                         noData={<Box style={{ height: pageHeight }} />}
                         loading={<Box style={{ height: pageHeight }} />}
                       />

@@ -66,6 +66,10 @@ class Paper {
     paper: SourcePaper;
   }[] = [];
 
+  dateAdded?: Date;
+
+  dateModified?: Date;
+
   constructor(p: Record<string, unknown> | null = null) {
     if (p) {
       Object.assign(this, p);
@@ -75,6 +79,11 @@ class Paper {
 
   serialize() {
     this.refresh();
+
+    if (!this.dateAdded) {
+      this.dateAdded = new Date();
+    }
+    this.dateModified = new Date();
 
     dataStore.set(
       `papers.${this.id}`,
@@ -91,6 +100,8 @@ class Paper {
         'numCitations',
         'starred',
         'thumbnail',
+        'dateAdded',
+        'dateModified',
       ])
     );
     this.refresh();
@@ -262,7 +273,7 @@ class Paper {
             break;
           }
           default: {
-            throw 'Source not found.';
+            throw Error('Source not found.');
           }
         }
       }

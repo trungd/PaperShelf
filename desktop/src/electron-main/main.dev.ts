@@ -187,11 +187,11 @@ ipcMain.handle(
         if (err) throw err;
       }
     );
-    const path = `${app.getPath('userData')}/thumbnails/${paper.id}.png`;
-    fs.writeFile(path, data, 'base64', function (err) {
+    const thumbnail = `${app.getPath('userData')}/thumbnails/${paper.id}.png`;
+    fs.writeFile(thumbnail, data, 'base64', function (err) {
       if (err) console.log(err);
     });
-    return path;
+    return thumbnail;
   }
 );
 

@@ -57,8 +57,16 @@ const Main = () => {
         break;
       case View.SideBarOnly:
         setSideBarWidth('100vw');
+        break;
+      default:
+        break;
     }
   };
+
+  useEffect(() => {
+    setSideBarWidth(store.get('view.sideBarWidth'));
+    setView(store.get('view.showSideBar') ? View.Regular : View.PdfViewerOnly);
+  }, []);
 
   useEffect(() => {
     const setSize = () => {
@@ -70,11 +78,6 @@ const Main = () => {
 
     setSize();
     window.addEventListener('resize', throttle(setSize, 500));
-
-    setView(store.get('view.showSideBar') ? View.Regular : View.PdfViewerOnly);
-    setSideBarWidth(
-      store.get('view.showSideBar') ? store.get('view.sideBarWidth') : 0
-    );
 
     return () => {
       window.removeEventListener('resize', throttle(setSize, 500));

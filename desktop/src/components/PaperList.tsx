@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   AddIcon,
+  ArrowSortIcon,
   BookmarkIcon,
   Box,
   Button,
@@ -34,6 +35,7 @@ import Paper, { searchPaper } from '../utils/paper';
 import { store } from '../utils/store';
 import Collection from '../utils/collection';
 import CollectionToolbar from './CollectionToolbar';
+import InCollectionToolbar, { SortType } from './InCollectionToolbar';
 
 require('format-unicorn');
 
@@ -62,13 +64,51 @@ const PaperList = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [papers, setPapers] = useState<Paper[]>([]);
   const [searchMode, setSearchMode] = useState<boolean>(true);
+  const [sortType, setSortType] = useState<SortType>(SortType.ByDateAdded);
 
   const [menuOpenBookmark, setMenuOpenBookmark] = useState<boolean>(false);
 
+  useEffect(() => {
+    setSortType(store.get('defaultSortBy'));
+  }, []);
+
+  const sort = (paperList: Paper[]) => {
+    switch (sortType) {
+      case SortType.ByDateAdded:
+        return paperList.sort((a: Paper, b: Paper) =>
+          a.dateAdded && b.dateAdded
+            ? -a.dateAdded!.getTime() + b.dateAdded!.getTime()
+            : 1
+        );
+      case SortType.ByDateModified:
+        return paperList.sort((a: Paper, b: Paper) =>
+          a.dateModified && b.dateModified
+            ? -a.dateModified!.getTime() + b.dateModified!.getTime()
+            : 1
+        );
+      case SortType.ByYear:
+        return paperList.sort((a: Paper, b: Paper) =>
+          a.year && b.year ? -a.year.localeCompare(b.year) : 1
+        );
+      case SortType.ByCitation:
+        return paperList.sort((a: Paper, b: Paper) =>
+          a.numCitations && b.numCitations
+            ? -a.numCitations + b.numCitations
+            : 1
+        );
+      case SortType.ByTitle:
+        return paperList.sort((a: Paper, b: Paper) =>
+          a.title && b.title ? a.title.localeCompare(b.title) : 1
+        );
+      default:
+        return paperList;
+    }
+  };
+
   const getListItems = () => {
     const getInCollectionItems = () => {
-      const inCollectionPapers = papers.filter((p) =>
-        p.inCollection(collection)
+      const inCollectionPapers = sort(
+        papers.filter((p) => p.inCollection(collection))
       );
 
       return [
@@ -94,8 +134,8 @@ const PaperList = ({
     const getOutCollectionItems = () => {
       if (!collection || !searchMode) return [];
 
-      const outCollectionPapers = papers.filter(
-        (p) => !p.inCollection(collection)
+      const outCollectionPapers = sort(
+        papers.filter((p) => !p.inCollection(collection))
       );
       return [
         {
@@ -116,8 +156,10 @@ const PaperList = ({
       const sources = store.get('searchPaperSources') as string[];
       return sources
         .map((source) => {
-          const webSearchPapers = papers.filter(
-            (p) => p.sources.length > 0 && p.sources[0].source === source
+          const webSearchPapers = sort(
+            papers.filter(
+              (p) => p.sources.length > 0 && p.sources[0].source === source
+            )
           );
           return [
             {
@@ -362,11 +404,23 @@ const PaperList = ({
 
   return (
     <Flex fill column style={{ userSelect: 'none' }}>
-      <CollectionToolbar
-        onChangeCollection={(c) => setCollection(c)}
-        allCollections={allCollections}
-        setAllCollections={setAllCollections}
-      />
+      <Flex>
+        <Flex.Item grow>
+          <CollectionToolbar
+            onChangeCollection={(c) => setCollection(c)}
+            allCollections={allCollections}
+            setAllCollections={setAllCollections}
+          />
+        </Flex.Item>
+        <Flex.Item>
+          <InCollectionToolbar
+            expanded={expanded}
+            onExpand={onExpand}
+            sort={sortType}
+            onSort={setSortType}
+          />
+        </Flex.Item>
+      </Flex>
       <Flex>
         <Flex.Item grow>
           <Input
@@ -381,12 +435,6 @@ const PaperList = ({
             clearable
           />
         </Flex.Item>
-        <Button
-          text
-          iconOnly
-          icon={expanded ? <FiMinimize2 /> : <FiMaximize2 />}
-          onClick={() => onExpand(!expanded)}
-        />
       </Flex>
 
       <Box

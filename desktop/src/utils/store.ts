@@ -29,6 +29,7 @@ export const store = new Store({
     },
     defaultTags: ['year:2020', 'year:2021'],
     pdfViewerToolbar: ['zoomIn', 'zoomOut', 'divider', 'open'],
+    defaultSortBy: 'dateAdded',
   },
   fileExtension: 'yaml',
   serialize: yaml.dump,

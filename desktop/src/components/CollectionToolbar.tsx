@@ -125,7 +125,7 @@ const CollectionToolbar = ({
       ),
     {
       key: 'hide-collection',
-      content: 'Hide Collection',
+      content: `Hide ${collection?.name || 'Collection'}`,
       disabled: collection === undefined,
       icon: <BiHide />,
       onClick: () => {
@@ -138,7 +138,7 @@ const CollectionToolbar = ({
     },
     {
       key: 'remove-collection',
-      content: 'Delete Collection',
+      content: `Delete ${collection?.name || 'Collection'}`,
       disabled: collection === undefined,
       icon: <TrashCanIcon />,
       onClick: () => {
@@ -193,17 +193,24 @@ const CollectionToolbar = ({
     {
       key: 'custom',
       kind: 'custom',
+      styles: { paddingLeft: 0 },
       content: (
-        <Text
+        <Button
           content={collection?.name || 'All'}
-          styles={{ color: 'brand', width: '100%' }}
-          truncated
+          styles={{ color: 'brand', minWidth: 0 }}
+          text
         />
       ),
     },
   ] as ToolbarItemProps[];
 
-  return <Toolbar aria-label="Default" items={toolbarItems} />;
+  return (
+    <Toolbar
+      styles={{ width: '100%' }}
+      aria-label="Default"
+      items={toolbarItems}
+    />
+  );
 };
 
 export default CollectionToolbar;

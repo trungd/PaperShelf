@@ -17,29 +17,33 @@ function mapOutline(outline: pdfjs.PDFTreeNode[]) {
   }));
 }
 
-async function mapDestinations(
+const mapDestinations = async (
   dest: Record<string, any[]>,
   pdfDoc: pdfjs.PDFDocumentProxy,
   allText: pdfjs.TextContentItem[][]
-) {
-  const res = {};
-  for (let name in dest) {
-    const page = await pdfDoc.getPageIndex(dest[name][0]);
-    const obj = {
-      page,
-      x: dest[name][2],
-      y: dest[name][3],
-      z: dest[name][4],
-    };
-    obj.textStart = allText[obj.page].findIndex(
-      (content) => content.transform[5] <= obj.y
-    );
-    obj.text = allText[obj.page][obj.textStart];
-    res[name] = obj;
-  }
-
-  return res;
-}
+) => {
+  const entries = Object.entries(dest).map(
+    ([name, item]: [name: string, item: any]) =>
+      (async () => {
+        const page = await pdfDoc.getPageIndex(item[0]);
+        const textStart = allText[page].findIndex(
+          (content) => content.transform[5] <= item[3]
+        );
+        return [
+          name,
+          {
+            page,
+            x: item[2],
+            y: item[3],
+            z: item[4],
+            textStart,
+            text: allText[page][textStart],
+          },
+        ];
+      })()
+  );
+  return Object.fromEntries(await Promise.all(entries));
+};
 
 export async function processPdf(pdfUrl: string) {
   if (!pdfUrl) return undefined;
@@ -50,7 +54,7 @@ export async function processPdf(pdfUrl: string) {
   const outline = await pdfDoc.getOutline();
 
   const allText: pdfjs.TextContentItem[][] = [];
-  for (var j = 1; j <= maxPages; j++) {
+  for (let j = 1; j <= maxPages; j += 1) {
     const page = await pdfDoc.getPage(j);
     // const annotations = await page.getAnnotations();
     const textContent = await page.getTextContent();

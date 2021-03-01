@@ -8,8 +8,8 @@ import React, {
 
 import { Document, Page } from 'react-pdf/dist/esm/entry.webpack';
 
-import { Box, Button, Flex, Popup } from '@fluentui/react-northstar';
-import { app, ipcRenderer } from 'electron';
+import { Box, Flex } from '@fluentui/react-northstar';
+import { ipcRenderer } from 'electron';
 
 import PdfViewerToolbar from './PdfViewerToolbar';
 import Paper from '../utils/paper';
@@ -69,7 +69,9 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
   const pageRef: Record<number, ElementRef<'div'> | null> = {};
 
   useEffect(() => {
-    processPdf(paper?.pdfUrl).then((info) => setPdfInfo(info));
+    processPdf(paper?.pdfUrl)
+      .then((info) => setPdfInfo(info))
+      .catch(() => {});
   }, [paper]);
 
   const zoom = (p: number) => {
@@ -172,8 +174,8 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
   }, [width]);
 
   const onClick = (e: React.MouseEvent) => {
-    var n = document.querySelector(':hover');
-    var el: Element = undefined;
+    let n = document.querySelector(':hover');
+    let el: Element;
     while (n) {
       el = n;
       n = n.querySelector(':hover');

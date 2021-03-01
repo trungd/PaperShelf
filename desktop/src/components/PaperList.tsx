@@ -36,6 +36,7 @@ import { store } from '../utils/store';
 import Collection from '../utils/collection';
 import CollectionToolbar from './CollectionToolbar';
 import InCollectionToolbar, { SortType } from './InCollectionToolbar';
+import { processPdf } from '../utils/analyze-pdf';
 
 require('format-unicorn');
 
@@ -454,14 +455,15 @@ const PaperList = ({
           selectedIndex={selectedIndex}
           onSelectedIndexChange={(_, p) => {
             setSelectedIndex(p?.selectedIndex);
-            const paper =
+
+            const paper: Paper | undefined =
               p?.selectedIndex !== undefined
                 ? getListItems()[p?.selectedIndex].paper
                 : undefined;
             setSelectedPaper(paper);
-            if (p?.selectedIndex !== undefined) {
+
+            if (paper !== undefined) {
               onChange(paper);
-              console.log(paper);
             }
           }}
         />

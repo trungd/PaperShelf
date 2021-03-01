@@ -8,12 +8,12 @@ import React, {
 
 import { Document, Page } from 'react-pdf/dist/esm/entry.webpack';
 
-import { Box, Flex } from '@fluentui/react-northstar';
-import fs from 'fs';
+import { Box, Button, Flex, Popup } from '@fluentui/react-northstar';
 import { app, ipcRenderer } from 'electron';
 
 import PdfViewerToolbar from './PdfViewerToolbar';
 import Paper from '../utils/paper';
+import { PdfInfo, processPdf } from '../utils/analyze-pdf';
 
 type PdfViewerProps = {
   width: number;
@@ -62,8 +62,15 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
   const [pageHeight, setPageHeight] = useState<string>();
   const [pageMarginLeft, setPageMarginLeft] = useState<number>(0);
 
+  const [popupRef, setPopupRef] = useState<HTMLElement>();
+  const [pdfInfo, setPdfInfo] = useState<PdfInfo>();
+
   const container = useRef<ElementRef<'div'>>();
   const pageRef: Record<number, ElementRef<'div'> | null> = {};
+
+  useEffect(() => {
+    processPdf(paper?.pdfUrl).then((info) => setPdfInfo(info));
+  }, [paper]);
 
   const zoom = (p: number) => {
     setZoomPercentage(p);
@@ -164,9 +171,26 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
     setViewWidth(width - 16);
   }, [width]);
 
+  const onClick = (e: React.MouseEvent) => {
+    var n = document.querySelector(':hover');
+    var el: Element = undefined;
+    while (n) {
+      el = n;
+      n = n.querySelector(':hover');
+    }
+    if (el?.nodeName === 'A') {
+      console.log(e.screenX, e.screenY, el);
+      const dest = el.getAttribute('href')?.slice(1);
+      console.log(pdfInfo?.destinations[dest]);
+      console.log(pdfInfo);
+      setPopupRef(el as HTMLElement);
+    }
+  };
+
   return (
     <Flex column styles={{ width: '100%', height: '100%' }}>
       <PdfViewerToolbar
+        outline={pdfInfo?.outline}
         zoomPercentage={zoomPercentage}
         zoom={zoom}
         paper={paper}
@@ -182,6 +206,7 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
           backgroundColor: 'gray',
         }}
         onScroll={onScroll}
+        onClick={onClick}
         ref={container}
       >
         {paper && (

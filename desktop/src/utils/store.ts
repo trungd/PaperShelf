@@ -6,6 +6,7 @@ import path from 'path';
 
 export const store = new Store({
   defaults: {
+    userDataLocation: null,
     paperLocation: path.join(app?.getPath('downloads') || '.', 'PaperShelf'),
     autoDownload: false,
     paperList: {

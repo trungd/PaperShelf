@@ -8,16 +8,18 @@ import React, {
 
 import { Document, Page } from 'react-pdf/dist/esm/entry.webpack';
 
-import { Box, Flex } from '@fluentui/react-northstar';
+import { Box, Flex, Popup, Segment } from '@fluentui/react-northstar';
 import { ipcRenderer } from 'electron';
 
 import PdfViewerToolbar from './PdfViewerToolbar';
+import PaperInfoPopup from './PaperInfoPopup';
 import Paper from '../utils/paper';
-import { PdfInfo, processPdf } from '../utils/analyze-pdf';
+import { Destination } from '../utils/analyze-pdf';
 
 type PdfViewerProps = {
   width: number;
   paper: Paper | null;
+  addToLibrary: (paper) => void;
 };
 
 const stringToHighlight = 'deep';
@@ -48,7 +50,7 @@ function highlightPattern(text: string) {
   //   .slice(0, -1);
 }
 
-function PdfViewer({ width, paper = null }: PdfViewerProps) {
+function PdfViewer({ width, paper = null, addToLibrary }: PdfViewerProps) {
   const padLeft = 8;
   const padRight = 0;
   const padTop = 8;
@@ -62,17 +64,15 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
   const [pageHeight, setPageHeight] = useState<string>();
   const [pageMarginLeft, setPageMarginLeft] = useState<number>(0);
 
-  const [popupRef, setPopupRef] = useState<HTMLElement>();
-  const [pdfInfo, setPdfInfo] = useState<PdfInfo>();
+  const [showPopup, setShowPopup] = useState<boolean>(false);
+  const [popupInfo, setPopupInfo] = useState<{
+    dest: Destination;
+  }>();
+  const [popupTarget, setPopupTarget] = useState<Element>();
 
   const container = useRef<ElementRef<'div'>>();
   const pageRef: Record<number, ElementRef<'div'> | null> = {};
-
-  useEffect(() => {
-    processPdf(paper?.pdfUrl)
-      .then((info) => setPdfInfo(info))
-      .catch(() => {});
-  }, [paper]);
+  const popperRef = useRef();
 
   const zoom = (p: number) => {
     setZoomPercentage(p);
@@ -153,16 +153,6 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
     [stringToHighlight, textItems]
   );
 
-  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (pageHeight) {
-      const page = Math.floor(
-        e.currentTarget.scrollTop /
-          (parseInt(pageHeight.slice(0, -2), 10) + 2 * padTop)
-      );
-      setCurrentPage(page);
-    }
-  };
-
   useEffect(() => {
     if (!paper) return;
     setPageWidth(((viewWidth - padLeft - padRight) * zoomPercentage) / 100);
@@ -173,26 +163,57 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
     setViewWidth(width - 16);
   }, [width]);
 
+  const adjustPopperPosition = (el: Element) => {
+    const rect = el.getBoundingClientRect();
+    console.log(el, rect);
+    const dest = el.getAttribute('href')?.slice(1);
+    if (dest) {
+      setPopupInfo({
+        x: rect.x,
+        y: rect.y,
+        w: rect.width,
+        h: rect.height,
+        href: el.getAttribute('href'),
+        dest: paper?.pdfInfo?.destinations[dest],
+      });
+    }
+  };
+
   const onClick = (e: React.MouseEvent) => {
-    let n = document.querySelector(':hover');
-    let el: Element;
-    while (n) {
-      el = n;
-      n = n.querySelector(':hover');
+    if (!showPopup) {
+      let n = document.querySelector(':hover');
+      let el: Element;
+      while (n) {
+        el = n;
+        n = n.querySelector(':hover');
+      }
+      if (el?.nodeName === 'A') {
+        setShowPopup(true);
+        setPopupTarget(el);
+        adjustPopperPosition(el);
+      } else {
+        setPopupTarget(undefined);
+      }
     }
-    if (el?.nodeName === 'A') {
-      console.log(e.screenX, e.screenY, el);
-      const dest = el.getAttribute('href')?.slice(1);
-      console.log(pdfInfo?.destinations[dest]);
-      console.log(pdfInfo);
-      setPopupRef(el as HTMLElement);
+  };
+
+  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (pageHeight) {
+      const page = Math.floor(
+        e.currentTarget.scrollTop /
+          (parseInt(pageHeight.slice(0, -2), 10) + 2 * padTop)
+      );
+      setCurrentPage(page);
     }
+    // TODO: allow scrolling
+    // if (popupTarget) adjustPopperPosition(popupTarget);
+    setShowPopup(false);
   };
 
   return (
     <Flex column styles={{ width: '100%', height: '100%' }}>
       <PdfViewerToolbar
-        outline={pdfInfo?.outline}
+        outline={paper?.pdfInfo?.outline}
         zoomPercentage={zoomPercentage}
         zoom={zoom}
         paper={paper}
@@ -211,6 +232,53 @@ function PdfViewer({ width, paper = null }: PdfViewerProps) {
         onClick={onClick}
         ref={container}
       >
+        {false && (
+          <Segment
+            style={{
+              position: 'fixed',
+              left: popupInfo?.x,
+              top: popupInfo?.y,
+              backgroundColor: 'white',
+              zIndex: 1000,
+            }}
+          >
+            {popupInfo?.href}
+          </Segment>
+        )}
+        <Popup
+          open={showPopup}
+          trigger={
+            <div
+              style={{
+                position: 'fixed',
+                left: popupInfo?.x,
+                top: popupInfo?.y,
+                width: popupInfo?.w,
+                height: popupInfo?.h,
+                zIndex: 1000,
+                cursor: 'pointer',
+                borderColor: 'red',
+              }}
+            />
+          }
+          content={{
+            content: (
+              <PaperInfoPopup
+                paper={popupInfo?.dest?.paper}
+                onLoaded={() => popperRef?.current?.updatePosition()}
+                addToLibrary={addToLibrary}
+              />
+            ),
+          }}
+          onOpenChange={(_, p) => {
+            setShowPopup(p?.value);
+          }}
+          align="center"
+          pointing
+          on="click"
+          // mouseLeaveDelay={200}
+          popperRef={popperRef}
+        />
         {paper && (
           <Document
             file={paper.getLocalPath() || paper?.pdfUrl}

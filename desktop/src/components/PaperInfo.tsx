@@ -8,16 +8,80 @@ import {
   TrashCanIcon,
   ArrowLeftIcon,
   Loader,
-  Checkbox,
   Text,
   DownloadIcon,
-  Divider,
   List,
   ListItemProps,
+  Box,
+  Segment,
+  EditIcon,
+  Table,
+  Tree,
+  TriangleDownIcon,
+  TriangleEndIcon,
 } from '@fluentui/react-northstar';
 import CreatableSelect from 'react-select/creatable';
 import TextareaAutosize from 'react-textarea-autosize';
 import Paper, { fetchPaper, getAllAuthors, getAllTags } from '../utils/paper';
+import { processPdf } from '../utils/analyze-pdf';
+import { showError } from '../utils/msgbox';
+
+const TabContent = ({
+  paper,
+  editable,
+}: {
+  paper: Paper | null;
+  editable: boolean;
+}) => {
+  const mapTreeItems = (outline) =>
+    outline
+      ? outline.map((it) => ({
+          id: it.name,
+          title: it.name,
+          items: mapTreeItems(it.items),
+          expanded: true,
+        }))
+      : null;
+
+  const titleRenderer = (
+    Component,
+    { content, expanded, open, hasSubtree, ...restProps }
+  ) => (
+    <Component expanded={expanded} hasSubtree={hasSubtree} {...restProps}>
+      {expanded ? <TriangleDownIcon /> : <TriangleEndIcon />}
+      {content}
+    </Component>
+  );
+
+  return (
+    <Form>
+      <FormField
+        label="Outline"
+        control={{
+          as: Tree,
+          items: mapTreeItems(paper?.pdfInfo?.outline),
+          renderItemTitle: titleRenderer,
+        }}
+      />
+      <FormField
+        label="Abstract"
+        control={
+          editable
+            ? {
+                as: TextareaAutosize,
+                fluid: true,
+                style: { width: '100%' },
+                value: paper?.abstract,
+                onChange: (_, p) => {
+                  if (paper) paper.abstract = p?.value;
+                },
+              }
+            : { as: Text, content: paper?.abstract }
+        }
+      />
+    </Form>
+  );
+};
 
 type PaperInfoProps = {
   paper: Paper | null;
@@ -32,51 +96,20 @@ export default function PaperInfo({
 }: PaperInfoProps) {
   const [paper, setPaper] = useState<Paper | null>(null);
 
-  const [isTitleFetching, setIsTitleFetching] = useState<boolean>(false);
-  const [isUrlFetching, setIsUrlFetching] = useState<boolean>(false);
+  const [isFetching, setIsFetching] = useState<boolean>(false);
   const [isAutoFill, setIsAutoFill] = useState<boolean>(true);
 
-  const [edittedPaper, setEdittedPaper] = useState<Paper>(new Paper());
-
-  const populateFields = (p: Paper) => {
-    setEdittedPaper(p);
-  };
-
-  const save = () => {
-    const p = paper || new Paper();
-    const { title, pdfUrl, tags, authors, abstract } = edittedPaper!;
-    Object.assign(p, { title, pdfUrl, tags, authors, abstract });
-    p.serialize();
-  };
-
-  const fetchByTitle = () => {
-    setIsTitleFetching(true);
-    fetchPaper(
-      new Paper({
-        title: edittedPaper.title,
-        pdfUrl: edittedPaper?.pdfUrl,
-        tags: edittedPaper.tags,
-        authors: edittedPaper?.authors,
-      })
-    )
-      .then((p) => populateFields(p))
-      .then(() => setIsTitleFetching(false))
-      .catch(() => {});
-  };
-
-  const fetchByUrl = () => {
-    setIsUrlFetching(true);
-    fetchPaper(
-      new Paper({
-        title: edittedPaper.title,
-        pdfUrl: edittedPaper?.pdfUrl,
-        tags: edittedPaper.tags,
-        authors: edittedPaper?.authors,
-      })
-    )
-      .then((p: Paper) => populateFields(p))
-      .then(() => setIsUrlFetching(false))
-      .catch(() => {});
+  const fetch = () => {
+    if (!paper) return;
+    setIsFetching(true);
+    paper
+      .fetch()
+      .then(() => setIsFetching(false))
+      .catch((e) => {
+        console.log(e);
+        showError(e);
+        setIsFetching(false);
+      });
   };
 
   const remove = () => {
@@ -87,11 +120,12 @@ export default function PaperInfo({
 
   const changePaper = (newPaper: Paper | null) => {
     if (paper) {
-      save();
+      paper.serialize();
+      paper.saveCache();
     }
 
     if (newPaper) {
-      populateFields(newPaper);
+      newPaper.loadCache();
     }
 
     setPaper(newPaper);
@@ -99,187 +133,257 @@ export default function PaperInfo({
 
   useEffect(() => changePaper(currentPaper), [currentPaper]);
 
+  const sections = [
+    {
+      key: 'general',
+      header: 'General',
+      content: (
+        <Box>
+          <Form>
+            <FormInput
+              label="Title"
+              required
+              disabled
+              fluid
+              value={paper?.title}
+              showSuccessIndicator={false}
+              onChange={(_, p) => {
+                if (paper) paper.title = p?.value || '';
+              }}
+            />
+            <FormInput
+              label="URL"
+              fluid
+              disabled
+              value={paper?.pdfUrl}
+              onChange={(_, p) => {
+                if (paper) paper.pdfUrl = p?.value || '';
+              }}
+            />
+            <FormField
+              label="Authors"
+              control={{
+                as: CreatableSelect,
+                isDisabled: isAutoFill,
+                isMulti: true,
+                createOptionPosition: 'first',
+                options: getAllAuthors().map((a) => ({
+                  value: a,
+                  label: a,
+                })),
+                value: paper?.authors.map((a) => ({
+                  value: a,
+                  label: a,
+                })),
+                onChange: (objs: any[]) => {
+                  if (paper) paper.authors = objs.map((o) => o.value);
+                },
+              }}
+            />
+            <FormField
+              label="Tags"
+              control={{
+                as: CreatableSelect,
+                isMulti: true,
+                isDisabled: isAutoFill,
+                createOptionPosition: 'first',
+                options: getAllTags().map((t) => ({
+                  value: t,
+                  label: t,
+                })),
+                value: paper?.tags.map((t) => ({
+                  value: t,
+                  label: t,
+                })),
+                onChange: (objs: any[]) => {
+                  if (paper) paper.tags = objs.map((o) => o.value);
+                },
+              }}
+            />
+          </Form>
+        </Box>
+      ),
+    },
+    {
+      key: 'pdfInfo',
+      header: 'Content',
+      content: <TabContent paper={paper} editable={!isAutoFill} />,
+    },
+    {
+      key: 'references',
+      header: `References (${paper?.references.length})`,
+      content: (
+        <List
+          navigable
+          truncateHeader
+          truncateContent
+          items={paper?.references.map(
+            (p) =>
+              ({
+                header: p.title,
+                content: `${p.authors?.join(', ')} (${
+                  p.venue + (p.venue ? ' ' : '') + p.year
+                })`,
+              } as ListItemProps)
+          )}
+        />
+      ),
+    },
+    {
+      key: 'citations',
+      header: `Citations (${paper?.citations.length})`,
+      content: (
+        <List
+          navigable
+          truncateHeader
+          truncateContent
+          items={paper?.citations.map(
+            (p) =>
+              ({
+                header: p.title,
+                content: `${p.authors?.join(', ')} (${
+                  p.venue + (p.venue ? ' ' : '') + p.year
+                })`,
+              } as ListItemProps)
+          )}
+        />
+      ),
+    },
+    {
+      key: 'info',
+      header: 'Info',
+      content: (
+        <Table
+          compact
+          rows={[
+            {
+              key: '1id',
+              items: ['ID', paper?.id],
+            },
+            {
+              key: '2arxivId',
+              items: ['ArXiv ID', paper?.arxivId],
+            },
+            {
+              key: 'year',
+              items: ['Year', paper?.year],
+            },
+            {
+              key: 'venue',
+              items: ['Venue', paper?.venue],
+            },
+            {
+              key: 'localPath',
+              items: [
+                'Local Path',
+                {
+                  content: paper?.localPath || 'Not Saved',
+                  truncateContent: true,
+                },
+              ],
+            },
+            {
+              key: 'sources',
+              items: ['Sources', Object.keys(paper?.sources || {}).join(', ')],
+            },
+            {
+              key: 'dateAdded',
+              items: ['Date Added', paper?.dateAdded?.toLocaleString()],
+            },
+            {
+              key: 'dateModified',
+              items: ['Date Modified', paper?.dateModified?.toLocaleString()],
+            },
+            {
+              key: 'starred',
+              items: ['Starred', paper?.starred ? '✓' : '✗'],
+            },
+          ].sort((a, b) => a.key.localeCompare(b.key))}
+          aria-label="Compact view static table"
+        />
+      ),
+    },
+    {
+      key: 'stats',
+      header: 'Stats',
+      content: (
+        <Table
+          variables={{
+            cellContentOverflow: 'ellipsis',
+          }}
+          compact
+          rows={[
+            {
+              key: 'num_citations',
+              items: ['No. citations', paper?.citations.length],
+            },
+            {
+              key: 'num_citations_inf',
+              items: [
+                'No. citations (influential)',
+                paper?.sources.semanticPaper?.influentialCitationCount,
+              ],
+            },
+          ]}
+          aria-label="Compact view static table"
+        />
+      ),
+    },
+  ];
+  const [currentSection, setCurrentSection] = useState<number | undefined>(0);
+
   return (
     <Flex fill column styles={{ height: '100%', width: '100%' }}>
       <Flex space="between">
-        <Button
-          text
-          content="Back"
-          icon={<ArrowLeftIcon />}
-          onClick={onClose}
-        />
+        <Flex>
+          <Button text iconOnly icon={<ArrowLeftIcon />} onClick={onClose} />
+          <Button text content={paper?.title} />
+        </Flex>
         <Flex gap="gap.small">
           <Button
             text
-            content="Remove"
-            icon={<TrashCanIcon />}
-            onClick={remove}
+            content={isAutoFill ? 'Off' : 'On'}
+            icon={<EditIcon />}
+            primary={!isAutoFill}
+            onClick={() => setIsAutoFill(!isAutoFill)}
           />
+          <Button
+            text
+            iconOnly
+            icon={isFetching ? <Loader size="small" /> : <DownloadIcon />}
+            onClick={() => fetch()}
+          />
+          <Button text iconOnly icon={<TrashCanIcon />} onClick={remove} />
         </Flex>
       </Flex>
-      <Flex.Item
-        styles={{
-          justifyContent: 'start',
-          height: 'calc(100% - 32px)',
-          padding: '16px',
-          overflowY: 'auto',
-        }}
-      >
-        <Form>
-          <Flex vAlign="center">
-            <Flex.Item grow>
-              <FormInput
-                required
-                fluid
-                style={{ fontSize: 20 }}
-                value={edittedPaper.title}
-                showSuccessIndicator={false}
-                onChange={(_, p) => {
-                  edittedPaper.title = p?.value || '';
-                }}
-              />
-            </Flex.Item>
-            <Button
-              primary
-              text
-              content="Fetch"
-              size="small"
-              icon={
-                isTitleFetching ? <Loader size="smaller" /> : <DownloadIcon />
-              }
-              onClick={() => fetchByTitle()}
-              disabled={!isAutoFill || isTitleFetching}
-            />
-          </Flex>
-          <Flex vAlign="center">
-            <Flex.Item grow>
-              <FormInput
-                fluid
-                value={edittedPaper.pdfUrl}
-                onChange={(_, p) => {
-                  edittedPaper.pdfUrl = p?.value || '';
-                }}
-              />
-            </Flex.Item>
-            <Button
-              primary
-              text
-              content="Fetch"
-              size="small"
-              icon={
-                isUrlFetching ? <Loader size="smaller" /> : <DownloadIcon />
-              }
-              onClick={() => fetchByUrl()}
-              disabled={!isAutoFill || isUrlFetching}
-            />
-          </Flex>
-
-          <Divider />
-          <Checkbox
-            checked={isAutoFill}
-            onChange={(_, p) => {
-              setIsAutoFill(p?.checked);
-              if (p?.checked) {
-                if (edittedPaper.pdfUrl) fetchByUrl();
-                else if (edittedPaper.title) fetchByTitle();
-              }
+      <Flex column padding="padding.medium" gap="gap.medium">
+        <Flex column>
+          <List
+            horizontal
+            selectable
+            defaultSelectedIndex={0}
+            onSelectedIndexChange={(_, p) => {
+              setCurrentSection(p?.selectedIndex);
             }}
-            label="Fill the following fields by Title and/or URL"
+            items={sections.map((it) => ({ header: it.header }))}
           />
-          <FormField
-            label="Authors"
-            control={
-              isAutoFill
-                ? { as: Text, content: edittedPaper.authors.join(', ') }
-                : {
-                    as: CreatableSelect,
-                    isDisabled: isAutoFill,
-                    isMulti: true,
-                    createOptionPosition: 'first',
-                    options: getAllAuthors().map((a) => ({
-                      value: a,
-                      label: a,
-                    })),
-                    value: edittedPaper.authors.map((a) => ({
-                      value: a,
-                      label: a,
-                    })),
-                    onChange: (objs: any[]) => {
-                      edittedPaper.authors = objs.map((o) => o.value);
-                    },
-                  }
-            }
-          />
-          <FormField
-            label="Tags"
-            control={
-              isAutoFill
-                ? { as: Text, content: edittedPaper.tags.join(', ') }
-                : {
-                    as: CreatableSelect,
-                    isMulti: true,
-                    isDisabled: true,
-                    createOptionPosition: 'first',
-                    options: getAllTags().map((t) => ({ value: t, label: t })),
-                    value: edittedPaper.tags.map((t) => ({
-                      value: t,
-                      label: t,
-                    })),
-                    onChange: (objs: any[]) => {
-                      edittedPaper.tags = objs.map((o) => o.value);
-                    },
-                    disabled: isAutoFill,
-                  }
-            }
-          />
-          <FormField
-            label="Abstract"
-            control={
-              isAutoFill
-                ? { as: Text, content: edittedPaper.abstract }
-                : {
-                    as: TextareaAutosize,
-                    fluid: true,
-                    style: { width: '100%' },
-                    value: edittedPaper.abstract,
-                    disabled: isAutoFill,
-                    onChange: (_, p) => {
-                      edittedPaper.abstract = p?.value;
-                    },
-                  }
-            }
-          />
-          <FormField
-            label="References"
-            control={
-              isAutoFill
-                ? {
-                    as: List,
-                    navigable: true,
-                    truncateHeader: true,
-                    truncateContent: true,
-                    items: edittedPaper?.references.map(
-                      (p) =>
-                        ({
-                          header: p.title,
-                          content: p.authors.join(', '),
-                        } as ListItemProps)
-                    ),
-                  }
-                : {
-                    as: TextareaAutosize,
-                    fluid: true,
-                    style: { width: '100%' },
-                    value: edittedPaper?.references,
-                    disabled: isAutoFill,
-                    onChange: (_, p) => {
-                      edittedPaper.references = p?.value;
-                    },
-                  }
-            }
-          />
-        </Form>
-      </Flex.Item>
+          {sections.map(
+            (it, idx) =>
+              currentSection === idx && (
+                <Segment
+                  color="red"
+                  style={{
+                    width: '100%',
+                    height: `calc(100vh - ${100}px)`,
+                    overflowY: 'auto',
+                  }}
+                  key={it.key}
+                  content={it.content}
+                />
+              )
+          )}
+        </Flex>
+      </Flex>
     </Flex>
   );
 }

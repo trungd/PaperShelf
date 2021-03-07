@@ -10,6 +10,7 @@ import PaperInfo from './components/PaperInfo';
 import Paper, { getLocalPapers } from './utils/paper';
 import { store } from './utils/store';
 import About from './views/about';
+import Preferences from './views/preferences';
 
 enum View {
   Regular,
@@ -30,6 +31,14 @@ const Main = () => {
   const [allPapers, setAllPapers] = useState<Paper[]>([]);
 
   const loadPapers = () => setAllPapers(getLocalPapers());
+
+  const addToLibrary = (paper: Paper) => {
+    if (!allPapers.map((p) => p.id).includes(paper.id)) {
+      paper.addToLibrary();
+      paper.serialize();
+      setAllPapers([...allPapers, paper]);
+    }
+  };
 
   useEffect(() => {
     /*
@@ -134,7 +143,11 @@ const Main = () => {
                   onRemovePaper={(p) => removePaper(p)}
                 />
               ) : (
-                <PdfViewer paper={selectedPaper} width={pdfWidth} />
+                <PdfViewer
+                  paper={selectedPaper}
+                  width={pdfWidth}
+                  addToLibrary={addToLibrary}
+                />
               )}
             </Box>
           )}
@@ -149,6 +162,7 @@ export default function App() {
     <Router>
       <Switch>
         <Route path="/about" component={About} />
+        <Route path="/preferences" component={Preferences} />
         <Route path="/" component={Main} />
       </Switch>
     </Router>

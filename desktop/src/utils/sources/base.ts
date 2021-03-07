@@ -8,15 +8,15 @@ export type SourceAuthor = {
 
 export type Source = {
   source: string;
-  search: (
+  search?: (
     searchQuery: string,
     start: number,
     maxResults: number
   ) => Promise<SourcePaper[]>;
-  searchAuthor: (
+  searchAuthor?: (
     searchQuery: string,
     start: number,
     maxResults: number
   ) => Promise<SourceAuthor[]>;
-  fetch: (url?: string, title?: string) => Promise<SourcePaper>;
+  fetch?: (url?: string, title?: string) => Promise<SourcePaper>;
 };

@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   AddIcon,
-  ArrowSortIcon,
   BookmarkIcon,
   Box,
-  Button,
   ButtonGroup,
   ButtonProps,
   Divider,
@@ -28,7 +26,6 @@ import {
   AiFillStar,
   AiOutlineStar,
 } from 'react-icons/ai';
-import { FiMaximize2, FiMinimize2 } from 'react-icons/fi';
 import { ipcRenderer } from 'electron';
 import Fuse from 'fuse.js';
 import Paper, { searchPaper } from '../utils/paper';
@@ -36,7 +33,6 @@ import { store } from '../utils/store';
 import Collection from '../utils/collection';
 import CollectionToolbar from './CollectionToolbar';
 import InCollectionToolbar, { SortType } from './InCollectionToolbar';
-import { processPdf } from '../utils/analyze-pdf';
 
 require('format-unicorn');
 
@@ -157,11 +153,7 @@ const PaperList = ({
       const sources = store.get('searchPaperSources') as string[];
       return sources
         .map((source) => {
-          const webSearchPapers = sort(
-            papers.filter(
-              (p) => p.sources.length > 0 && p.sources[0].source === source
-            )
-          );
+          const webSearchPapers = sort(papers.filter((p) => p.sources[source]));
           return [
             {
               header: (
@@ -173,22 +165,22 @@ const PaperList = ({
               selectable: false,
             },
             ...webSearchPapers.map((p) => mapFn(p)),
-            {
-              header: (
-                <Flex>
-                  <Button
-                    size="small"
-                    text
-                    content={`More from ${source}...`}
-                    fluid
-                  />
-                </Flex>
-              ),
-              styles: {
-                minHeight: 0,
-              },
-              selectable: false,
-            },
+            // {
+            //   header: (
+            //     <Flex>
+            //       <Button
+            //         size="small"
+            //         text
+            //         content={`More from ${source}...`}
+            //         fluid
+            //       />
+            //     </Flex>
+            //   ),
+            //   styles: {
+            //     minHeight: 0,
+            //   },
+            //   selectable: false,
+            // },
           ];
         })
         .flat(1);
@@ -279,6 +271,14 @@ const PaperList = ({
     return <Text content="arvix" color="red" />;
   };
 
+  const getContentMedia = (p: Paper) => {
+    return (
+      <Flex>
+        {p.inLibrary && !p.read && <Text content="New!" color="red" />}
+      </Flex>
+    );
+  };
+
   const mapFn = (p: Paper) =>
     ({
       paper: p,
@@ -287,7 +287,7 @@ const PaperList = ({
       content: getContent(p),
       endMedia: getEndMedia(p),
       // important: p.starred,
-      // contentMedia: `Cited by ${p.numCitations}`,
+      contentMedia: getContentMedia(p),
       media: expanded && (
         <Image src={p.thumbnail} styles={{ height: '200px' }} />
       ),
@@ -460,9 +460,18 @@ const PaperList = ({
               p?.selectedIndex !== undefined
                 ? getListItems()[p?.selectedIndex].paper
                 : undefined;
-            setSelectedPaper(paper);
 
-            if (paper !== undefined) {
+            if (paper) {
+              paper.loadCache();
+              if (paper.inLibrary) {
+                paper.read = true;
+                if (!paper.dateFetched) {
+                  paper.fetch();
+                } else {
+                  paper.serialize();
+                }
+              }
+              setSelectedPaper(paper);
               onChange(paper);
             }
           }}

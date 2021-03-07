@@ -1,5 +1,4 @@
 import {
-  AddIcon,
   BookmarkIcon,
   Button,
   ButtonProps,
@@ -8,11 +7,9 @@ import {
   MenuItemProps,
   Toolbar,
   TrashCanIcon,
-  Text,
   MenuIcon,
   ToolbarMenuItemProps,
   ToolbarItemProps,
-  StarIcon,
 } from '@fluentui/react-northstar';
 import React, { useEffect, useState } from 'react';
 import { BiHide } from 'react-icons/bi';

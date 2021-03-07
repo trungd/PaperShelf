@@ -1,12 +1,14 @@
 import { app } from 'electron';
 
 import Store from 'electron-store';
+import fs from 'fs';
 import yaml from 'js-yaml';
 import path from 'path';
 
 export const store = new Store({
   defaults: {
-    userDataLocation: null,
+    userDataPath: app?.getPath('userData'),
+    dataLocation: app?.getPath('userData'),
     paperLocation: path.join(app?.getPath('downloads') || '.', 'PaperShelf'),
     autoDownload: false,
     paperList: {
@@ -31,6 +33,15 @@ export const store = new Store({
     defaultTags: ['year:2020', 'year:2021'],
     pdfViewerToolbar: ['zoomIn', 'zoomOut', 'divider', 'open'],
     defaultSortBy: 'dateAdded',
+    sync: {
+      method: 'none',
+      googleDrive: {
+        code: null,
+        lastUpdated: null,
+        clientId: null,
+        clientSecret: null,
+      },
+    },
   },
   fileExtension: 'yaml',
   serialize: yaml.dump,
@@ -61,6 +72,14 @@ export const dataStore = new Store({
   fileExtension: 'yaml',
   serialize: yaml.dump,
   deserialize: yaml.load,
+  cwd: store.get('dataLocation'),
 });
 
 // store.clear();
+
+export function changeDataStoreCwd(newPath?: string) {
+  const root = newPath || store.get('userDataPath');
+  fs.writeFile(`${root}/data.yaml`, yaml.dump(dataStore.store), () => {});
+
+  // TODO: require restart
+}

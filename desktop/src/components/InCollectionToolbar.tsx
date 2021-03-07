@@ -1,13 +1,4 @@
-import {
-  AcceptIcon,
-  AppsIcon,
-  ArrowSortIcon,
-  CalendarIcon,
-  FontSizeIcon,
-  QuoteIcon,
-  Toolbar,
-} from '@fluentui/react-northstar';
-import { getByTitle } from '@testing-library/react';
+import { AcceptIcon, ArrowSortIcon, Toolbar } from '@fluentui/react-northstar';
 import React, { useState } from 'react';
 import { FiMaximize2, FiMinimize2 } from 'react-icons/fi';
 
@@ -36,6 +27,7 @@ const InCollectionToolbar = ({
   return (
     <Toolbar
       items={[
+        // { key: 'sync', icon: <SyncIcon />, onClick: () => syncGoogleDrive() },
         {
           key: 'sort',
           icon: <ArrowSortIcon />,

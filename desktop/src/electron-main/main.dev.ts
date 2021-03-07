@@ -21,6 +21,8 @@ import { IpcMainEvent, IpcMainInvokeEvent } from 'electron/main';
 import MenuBuilder from './menu';
 import initContextMenu from './contextMenu';
 import Paper from '../utils/paper';
+import { showPreferences } from './modal';
+import { store } from '../utils/store';
 
 electronDl();
 Store.initRenderer();
@@ -85,6 +87,7 @@ const createWindow = async () => {
     webPreferences: {
       nodeIntegration: true,
       webSecurity: false,
+      enableRemoteModule: true,
     },
   });
 
@@ -115,6 +118,10 @@ const createWindow = async () => {
   mainWindow.webContents.on('new-window', (event, url) => {
     event.preventDefault();
     shell.openExternal(url);
+  });
+
+  mainWindow.webContents.on('will-navigate', (event) => {
+    event.preventDefault();
   });
 
   // Remove this if your app does not use auto updates
@@ -166,6 +173,10 @@ ipcMain.on('modal-edit-paper', (_, p?: Paper) => {
   });
 });
 
+ipcMain.on('modal-preferences', () => {
+  showPreferences(mainWindow || undefined);
+});
+
 ipcMain.on('download', (_, { url, directory, filename }) => {
   download(mainWindow!, url, {
     filename,
@@ -181,7 +192,7 @@ ipcMain.handle(
     { paper, data }: { paper: Paper; data: string }
   ) => {
     fs.mkdir(
-      `${app.getPath('userData')}/thumbnails`,
+      `${store.get('dataLocation') || app.getPath('userData')}/thumbnails`,
       { recursive: true },
       (err) => {
         if (err) throw err;

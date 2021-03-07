@@ -1,5 +1,5 @@
 import categories from '../arxiv_categories.json';
-import { Source, SourcePaper } from './base';
+import { SourcePaper } from './base';
 
 export function comparePaperTitle(t1: string, t2: string) {
   const normalize = (t: string) => t.toLowerCase().replace(/\W/g, '');
@@ -101,4 +101,7 @@ export const Arxiv = {
     }
     return undefined;
   },
-} as Source;
+  getPdfUrlFromId(id: string) {
+    return `https://arxiv.org/pdf/${id}.pdf`;
+  },
+};

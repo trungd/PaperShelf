@@ -20,7 +20,6 @@ export type GoogleScholarAuthor = SourceAuthor & {
 
 export const GoogleScholar: Source = {
   source: 'Google Scholar',
-  fetch: (url?: string, title?: string) => {},
   search: async (searchQuery: string, start: number, maxResults: number) =>
     new Promise((resolve, reject) => {
       PythonShell.run(

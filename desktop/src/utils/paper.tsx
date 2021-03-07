@@ -1,6 +1,7 @@
 import { shell, ipcRenderer, app } from 'electron';
 import fs from 'fs';
 import { pick } from 'lodash';
+import yaml from 'js-yaml';
 import {
   Arxiv,
   ArxivPaper,
@@ -11,14 +12,20 @@ import Collection from './collection';
 import { store, dataStore } from './store';
 import { GoogleScholar, GoogleScholarPaper } from './sources/googleScholar';
 import { Source, SourcePaper } from './sources/base';
+import { Annotation, Destination, processPdf } from './analyze-pdf';
 
 type SimplePaper = {
   title: string;
   authors: string[];
+  venue: string;
+  year: string;
+  pdfUrl: string;
 };
 
 class Paper {
   id?: string;
+
+  arxivId?: string;
 
   title?: string;
 
@@ -36,6 +43,8 @@ class Paper {
 
   tags: string[] = [];
 
+  customTags: string[] = [];
+
   zoomPercentage = 100;
 
   // Populated fields
@@ -51,7 +60,7 @@ class Paper {
 
   numCitations = 0;
 
-  citations: string[] = [];
+  citations: SimplePaper[] = [];
 
   references: SimplePaper[] = [];
 
@@ -61,14 +70,25 @@ class Paper {
 
   thumbnail?: string;
 
-  sources: {
-    source: string;
-    paper: SourcePaper;
-  }[] = [];
+  sources: Record<string, SourcePaper> = {};
 
   dateAdded?: Date;
 
   dateModified?: Date;
+
+  dateFetched?: Date;
+
+  isFetching = false;
+
+  cachePath?: string;
+
+  pdfInfo?: {
+    outline: { name: string; items: any[] }[];
+    destinations: Record<string, Destination>;
+    annotations: Annotation[][];
+  };
+
+  read = false;
 
   constructor(p: Record<string, unknown> | null = null) {
     if (p) {
@@ -90,10 +110,11 @@ class Paper {
       pick(this, [
         'id',
         'title',
+        'year',
+        'venue',
         'pdfUrl',
         'localPath',
         'inLibrary',
-        'abstract',
         'authors',
         'tags',
         'zoomPercentage',
@@ -102,18 +123,55 @@ class Paper {
         'thumbnail',
         'dateAdded',
         'dateModified',
+        'read',
       ])
     );
     this.refresh();
   }
 
+  saveCache() {
+    this.refresh();
+    if (this.cachePath) {
+      fs.mkdir(
+        `${store.get('dataLocation')}/cache`,
+        { recursive: true },
+        (err) => {
+          if (err) throw err;
+        }
+      );
+      fs.writeFileSync(
+        this.cachePath,
+        yaml.dump(
+          pick(this, [
+            'citations',
+            'abstract',
+            'pdfInfo',
+            'references',
+            'sources',
+          ])
+        )
+      );
+    }
+  }
+
+  loadCache() {
+    if (this.cachePath) {
+      try {
+        const data = fs.readFileSync(this.cachePath);
+        Object.assign(this, yaml.load(data));
+        this.refresh();
+      } catch (e) {}
+    }
+  }
+
   refresh() {
-    const getField = (field: string) => {
-      const tags = this.getTagsByType(field);
-      return tags ? tags[0] : undefined;
-    };
-    this.year = getField('year');
-    this.venue = getField('venue');
+    this.tags = [
+      ...new Set(
+        this.tags
+          .map((s) => s?.toLowerCase().replace(/\s+/, '-'))
+          .filter((s) => s)
+      ),
+    ];
     this.venueAndYear = [this.venue, this.year].join(' ');
 
     // Populate authorShort
@@ -133,6 +191,8 @@ class Paper {
         this.id = Math.random().toString(36).slice(2);
       }
     }
+
+    this.cachePath = `${store.get('dataLocation')}/cache/${this.id}.yaml`;
   }
 
   static delete(id?: string) {
@@ -176,10 +236,12 @@ class Paper {
     this.serialize();
   }
 
-  addToLibrary() {
+  async addToLibrary() {
     this.inLibrary = true;
     if (store.get('autoDownload')) this.download();
+    await this.fetch();
     this.serialize();
+    this.saveCache();
   }
 
   inCollection(c?: Collection) {
@@ -218,9 +280,21 @@ class Paper {
     }
   }
 
+  async fetch() {
+    this.isFetching = true;
+    await fetchPaper(this);
+    await processPdf(this);
+    this.dateFetched = new Date();
+    this.serialize();
+    this.saveCache();
+    this.isFetching = false;
+    return this;
+  }
+
   populateFieldsFromSources() {
-    this.sources.forEach(
-      ({ source, paper }: { source: string; paper: SourcePaper }) => {
+    this.tags = [];
+    Object.entries(this.sources).forEach(
+      ([source, paper]: [source: string, paper: SourcePaper]) => {
         switch (source) {
           case Arxiv.source: {
             const arxivPaper = paper as ArxivPaper;
@@ -228,35 +302,44 @@ class Paper {
             this.pdfUrl = this.pdfUrl || arxivPaper.pdfUrl;
             this.title = this.title || arxivPaper.title;
             this.abstract = this.abstract || arxivPaper.abstract;
+            this.year =
+              this.year || arxivPaper.updated.getFullYear().toString();
             if (this.authors.length === 0) this.authors = arxivPaper.authors;
-            this.appendTags([
-              ...arxivPaper.categories,
-              ...(arxivPaper.updated
-                ? [`year:${arxivPaper.updated.getFullYear()}`]
-                : []),
-            ]);
+            this.appendTags(arxivPaper.categories);
             break;
           }
           case SemanticScholar.source: {
             const semanticPaper = paper as SemanticScholarPaper;
             this.title = this.title || semanticPaper.title;
+            this.arxivId = this.arxivId || semanticPaper.arxivId;
             this.abstract = this.abstract || semanticPaper.abstract;
             if (this.authors.length === 0)
               this.authors = semanticPaper.authors.map((a) => a.name);
             this.numCitations = this.numCitations || semanticPaper.numCitations;
-            this.citations = semanticPaper.citations.map((p) => p.title);
+            this.citations = semanticPaper.citations.map((p) => ({
+              title: p.title,
+              authors: p.authors.map((a) => a.name),
+              venue: p.venue,
+              year: p.year,
+              pdfUrl: p.arxivId ? Arxiv.getPdfUrlFromId(p.arxivId) : undefined,
+            }));
             this.references = semanticPaper.references.map(
               (p) =>
                 ({
                   title: p.title,
                   authors: p.authors.map((a) => a.name),
+                  venue: p.venue,
+                  year: p.year,
+                  pdfUrl: p.arxivId
+                    ? Arxiv.getPdfUrlFromId(p.arxivId)
+                    : undefined,
                 } as SimplePaper)
             );
 
-            if (semanticPaper.venue)
-              this.appendTags([`venue:${semanticPaper.venue}`]);
-            if (semanticPaper.year)
-              this.appendTags([`year:${semanticPaper.year}`]);
+            this.year = this.year || semanticPaper.year;
+            this.venue = this.venue || semanticPaper.venue;
+            if (semanticPaper.topics)
+              this.appendTags(semanticPaper.topics.map((t) => t.topic));
             break;
           }
           case GoogleScholar.source: {
@@ -273,7 +356,7 @@ class Paper {
             break;
           }
           default: {
-            throw Error('Source not found.');
+            break;
           }
         }
       }
@@ -281,6 +364,11 @@ class Paper {
 
     this.refresh();
     return this;
+  }
+
+  getCitedPaperFromText(txt: string) {
+    if (!this.references) return undefined;
+    return this.references[0];
   }
 }
 
@@ -336,16 +424,17 @@ export function getPaper(id: string) {
 
 export async function fetchPaper(p: Paper) {
   const sources = store.get('fetchPaperSources') as string[];
+  p.sources = {};
   const promises = sources.map((source) => {
     switch (source) {
       case Arxiv.source:
         return Arxiv.fetch(p.pdfUrl, p.title).then((paper) => {
-          p.sources.push({ source, paper });
+          if (paper) p.sources[source] = paper;
           return true;
         });
       case SemanticScholar.source:
         return SemanticScholar.fetch(p.pdfUrl, p.title).then((paper) => {
-          if (paper) p.sources.push({ source, paper });
+          if (paper) p.sources[source] = paper;
           return true;
         });
       default:
@@ -358,25 +447,36 @@ export async function fetchPaper(p: Paper) {
   });
 }
 
-export async function searchPaper(
-  query: string,
-  callback: (p: Paper[]) => void
-) {
+export function searchPaper(query: string, callback: (p: Paper[]) => void) {
   const sources = store.get('searchPaperSources') as string[];
   return Promise.all(
-    ([Arxiv, GoogleScholar] as Source[]).map((s) =>
-      sources.includes(s.source)
-        ? s.search(query, 0, 10).then((res) =>
+    sources.map((source) => {
+      switch (source) {
+        case Arxiv.source:
+          return Arxiv.search(query, 0, 10).then((res) =>
             callback(
               res.map((paper: SourcePaper) =>
                 new Paper({
-                  sources: [{ source: s.source, paper }],
+                  sources: { [source]: paper },
                 }).populateFieldsFromSources()
               )
             )
-          )
-        : null
-    )
+          );
+        case GoogleScholar.source:
+          return GoogleScholar.search(query, 0, 10).then((res) =>
+            callback(
+              res.map((paper: SourcePaper) =>
+                new Paper({
+                  sources: { [source]: paper },
+                }).populateFieldsFromSources()
+              )
+            )
+          );
+        default: {
+          return null;
+        }
+      }
+    })
   ).catch((err) => console.log(err));
 }
 

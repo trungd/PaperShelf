@@ -15,7 +15,7 @@ type PdfViewerToolbarProps = {
   zoomPercentage: number;
   zoom: (zoomPercentage: number) => void;
   paper: Paper | null;
-  outline: { name: string; items: any[] }[];
+  outline?: { name: string; items: any[] }[];
 };
 
 const PdfViewerToolbar = ({
@@ -70,7 +70,7 @@ const PdfViewerToolbar = ({
     outline: {
       icon: <BulletsIcon />,
       key: 'outline',
-      disable: !outline,
+      disable: !paper || !outline,
       menu: outline?.map(({ name }) => ({
         key: name,
         text: true,

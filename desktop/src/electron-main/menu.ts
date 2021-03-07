@@ -4,9 +4,12 @@ import {
   shell,
   BrowserWindow,
   MenuItemConstructorOptions,
+  ipcMain,
 } from 'electron';
 import { dataStore, store } from '../utils/store';
 import { toggleDistractionFreeMode } from '../utils/broadcast';
+import { syncGoogleDrive } from './sync';
+import { showPreferences } from './modal';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
   selector?: string;
@@ -67,14 +70,28 @@ export default class MenuBuilder {
           label: 'Preferences',
           submenu: [
             {
-              label: 'General',
+              label: 'Open Preferences',
+              click: () => showPreferences(this.mainWindow),
+            },
+            { type: 'separator' },
+            {
+              label: 'Edit general settings (config.yaml)',
               click: () => store.openInEditor(),
             },
             {
-              label: 'Saved Data',
+              label: 'Edit saved data (data.yaml)',
               click: () => dataStore.openInEditor(),
             },
+            { type: 'separator' },
+            {
+              label: 'Reset',
+              click: () => store.reset(),
+            },
           ],
+        },
+        {
+          label: 'Sync',
+          click: () => syncGoogleDrive(),
         },
         { type: 'separator' },
         {
@@ -214,14 +231,28 @@ export default class MenuBuilder {
             label: 'Preferences',
             submenu: [
               {
-                label: 'General',
+                label: 'Open Preferences',
+                click: () => showPreferences(this.mainWindow),
+              },
+              { type: 'separator' },
+              {
+                label: 'Edit general settings (config.yaml)',
                 click: () => store.openInEditor(),
               },
               {
-                label: 'Saved Data',
+                label: 'Edit saved data (data.yaml)',
                 click: () => dataStore.openInEditor(),
               },
+              { type: 'separator' },
+              {
+                label: 'Reset',
+                click: () => store.reset(),
+              },
             ],
+          },
+          {
+            label: 'Sync',
+            click: () => syncGoogleDrive(this.mainWindow),
           },
           {
             label: '&Close',

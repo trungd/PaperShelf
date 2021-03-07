@@ -251,6 +251,7 @@
   },
   "dependencies": {
     "@fluentui/react-northstar": "^0.52.0",
+    "axios": "^0.21.1",
     "electron-context-menu": "^2.4.0",
     "electron-debug": "^3.1.0",
     "electron-dl": "^3.0.3",
@@ -271,6 +272,7 @@
     "react-router-dom": "^5.2.0",
     "react-select": "^4.1.0",
     "react-textarea-autosize": "^8.3.1",
+    "react-truncate": "^2.4.0",
     "regenerator-runtime": "^0.13.5",
     "source-map-support": "^0.5.19"
   },

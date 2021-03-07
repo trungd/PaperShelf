@@ -3,8 +3,8 @@ import { SourcePaper } from './base';
 
 export type SemanticScholarPaper = SourcePaper & {
   id: string;
+  arxivId: string;
   title: string;
-  topics: string[];
   url: string;
   venue: string;
   year: string;
@@ -29,18 +29,27 @@ export type SemanticScholarPaper = SourcePaper & {
     venue: string;
     year: number;
   }[];
+  topics: { topic: string; topicId: string; url: string }[];
   numCitations: number;
   citationVelocity: number;
   corpusId: number;
   fieldsOfStudy: string[];
   influentialCitationCount: number;
   references: {
+    arxivId: string;
     title: string;
+    doi: string;
+    intent: string[];
+    isInfluential: boolean;
+    paperId: string;
     authors: {
       authorId: string;
       name: string;
       url: string;
     }[];
+    url: string;
+    venue: string;
+    year: string;
   }[];
 };
 
@@ -62,21 +71,8 @@ export const SemanticScholar = {
         const data = await response.json();
 
         return {
-          id: data.paperId,
-          title: data.title,
-          topics: data.topics.map((t: { topic: string }) => t.topic),
-          url: data.url,
-          venue: data.venue,
-          year: data.year,
-          abstract: data.abstract,
-          citations: data.citations,
-          references: data.references,
-          authors: data.authors,
+          ...data,
           numCitations: data.citations.length,
-          citationVelocity: data.citationVelocity,
-          corpusId: data.corpusId,
-          fieldsOfStudy: data.fieldsOfStudy,
-          influentialCitationCount: data.influentialCitationCount,
         } as SemanticScholarPaper;
       }
     }
